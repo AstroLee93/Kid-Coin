@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+  --app-bg: #fefcf6;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --app-bg: #15110a;
+}
+
+html {
+  background-color: var(--app-bg, #fefcf6);
+  color: #0f172a;
+  transition: background-color 0.25s ease;
+}
+
+html.dark {
+  color: #f8fafc;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--app-bg, #fefcf6);
+  color: inherit;
+  min-height: 100vh;
+  transition: background-color 0.25s ease;
+}

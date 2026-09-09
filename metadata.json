@@ -1,0 +1,6 @@
+{
+  "name": "KidCoin Vault",
+  "description": "Offline-ready, gamified personal finance manager for kids with encrypted storage, multi-account tracking, savings milestones, and Raspberry Pi Portainer deployment.",
+  "requestFramePermissions": ["notifications"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
