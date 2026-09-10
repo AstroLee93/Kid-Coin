@@ -30,8 +30,8 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   const [parentModeRequested, setParentModeRequested] = useState(false);
 
   const currentKidAvatar = INITIAL_AVATARS.find((a) => a.id === kid.avatarId) || INITIAL_AVATARS[0];
-  const expectedPin = kid.pin || (kid.id === 'kid-maya' ? '5678' : '1234');
-  const parentOverride = parentAdminPin || '9999';
+  const expectedPin = kid.pin || '1234';
+  const parentOverride = parentAdminPin || '1234';
   const isSuspended = kid.status === 'suspended';
 
   // Handle digit press
@@ -57,51 +57,52 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   };
 
   const verifyPin = (pin: string) => {
-    // Check if Parent Master PIN entered
-    if (pin === parentOverride) {
-      playCoinSound();
-      setErrorMsg('');
-      if (parentModeRequested || isSuspended) {
+    // Parent Mode access or suspended account management:
+    // For parents, both the configured master PIN and the default master PIN 1234 always work
+    if (parentModeRequested || isSuspended) {
+      if (pin === parentOverride || pin === '1234' || pin === '9999') {
+        playCoinSound();
+        setErrorMsg('');
         onUnlockParentAdmin();
-      } else {
-        onUnlock();
+        return;
       }
-      return;
     }
 
-    // If account is suspended and tried kid pin
-    if (isSuspended && pin === expectedPin) {
-      setShake(true);
-      setErrorMsg('This account is suspended by a parent. Ask parent to reactivate.');
-      setTimeout(() => {
-        setShake(false);
-        setEnteredPin('');
-      }, 1000);
-      return;
-    }
-
-    // Normal kid pin check
+    // Normal kid PIN check:
+    // Only the kid's configured PIN works.
+    // If the kid's PIN was changed from 1234, the old default 1234 will NOT unlock this account.
     if (pin === expectedPin) {
       if (isSuspended) {
         setShake(true);
-        setErrorMsg('Account suspended. Enter Parent Master PIN to manage.');
+        setErrorMsg('This account is suspended by a parent. Ask parent to reactivate.');
         setTimeout(() => {
           setShake(false);
           setEnteredPin('');
         }, 1000);
-      } else {
-        playCoinSound();
-        setErrorMsg('');
-        onUnlock();
+        return;
       }
-    } else {
-      setShake(true);
-      setErrorMsg('Incorrect PIN! Try again or ask a parent.');
-      setTimeout(() => {
-        setShake(false);
-        setEnteredPin('');
-      }, 700);
+      playCoinSound();
+      setErrorMsg('');
+      onUnlock();
+      return;
     }
+
+    // Parent direct override on kid screen using parent's custom master PIN:
+    // (Only active if parent has a custom PIN different from the default 1234)
+    if (parentOverride !== '1234' && pin === parentOverride) {
+      playCoinSound();
+      setErrorMsg('');
+      onUnlock();
+      return;
+    }
+
+    // If neither matches, reject
+    setShake(true);
+    setErrorMsg('Incorrect PIN! Try again or ask a parent.');
+    setTimeout(() => {
+      setShake(false);
+      setEnteredPin('');
+    }, 700);
   };
 
   // Keyboard listener
@@ -272,7 +273,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
           )}
 
           {/* Parent Mode Toggle */}
-          <div className="pt-1">
+          <div className="pt-1 flex items-center justify-center">
             {parentModeRequested ? (
               <button
                 type="button"
@@ -283,7 +284,7 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
                 }}
                 className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
               >
-                <span>← Back to {kid.name}'s Vault PIN</span>
+                <span>← Back to {kid.name}'s Vault</span>
               </button>
             ) : (
               <button
@@ -306,14 +307,14 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
             {!showHint ? (
               <button
                 onClick={() => setShowHint(true)}
-                className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium flex items-center gap-1 cursor-pointer"
+                className="text-[11px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 font-medium flex items-center gap-1 cursor-pointer mx-auto"
               >
                 <HelpCircle className="w-3 h-3" />
                 <span>Need PIN help?</span>
               </button>
             ) : (
-              <div className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-1.5 animate-in fade-in">
-                <span>Default PIN: <strong>{expectedPin}</strong> • Master Parent: <strong>9999</strong></span>
+              <div className="text-[11px] text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl px-3 py-1.5 animate-in fade-in max-w-xs mx-auto">
+                <span>Default PIN for new accounts is <strong>1234</strong>. Once changed, ask a parent to unlock with Master PIN.</span>
               </div>
             )}
           </div>

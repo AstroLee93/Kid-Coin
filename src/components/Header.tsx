@@ -20,6 +20,7 @@ interface HeaderProps {
   viewMode: 'simple' | 'advanced';
   isParentAdmin?: boolean;
   onOpenParentAdmin?: () => void;
+  onExitAdmin?: () => void;
   onToggleDarkMode: () => void;
   onViewModeChange: (mode: 'simple' | 'advanced') => void;
   onSelectKid: (id: string) => void;
@@ -37,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
   viewMode,
   isParentAdmin = false,
   onOpenParentAdmin,
+  onExitAdmin,
   onToggleDarkMode,
   onViewModeChange,
   onSelectKid,
@@ -174,17 +176,40 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Parent Admin Active Pill */}
-            {isParentAdmin && onOpenParentAdmin && (
-              <button
-                id="header-admin-active-badge"
-                onClick={onOpenParentAdmin}
-                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black cursor-pointer shadow-xs hover:bg-indigo-200 transition-colors"
-                title="Parent Admin Mode Active - Click to open portal"
+            {/* Parent Admin Active Pill or Safe Kid Badge */}
+            {isParentAdmin ? (
+              <div className="flex items-center gap-1.5">
+                {onOpenParentAdmin && (
+                  <button
+                    id="header-admin-active-badge"
+                    onClick={onOpenParentAdmin}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black cursor-pointer shadow-xs hover:bg-indigo-200 transition-colors"
+                    title="Parent Admin Mode Active - Click to open portal"
+                  >
+                    <span>🛡️</span>
+                    <span>Admin</span>
+                  </button>
+                )}
+                {onExitAdmin && (
+                  <button
+                    id="header-exit-admin-btn"
+                    onClick={onExitAdmin}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black cursor-pointer shadow-xs transition-colors"
+                    title="Exit Admin Mode"
+                  >
+                    <span>🔒 Exit</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div 
+                id="header-kid-safe-badge"
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/60 text-xs font-bold"
+                title="Admin privileges locked. Safe kid vault active."
               >
-                <span>🛡️</span>
-                <span>Admin</span>
-              </button>
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span>Kid-Safe</span>
+              </div>
             )}
 
             {/* Savings Streak Badge */}
@@ -226,6 +251,7 @@ export const Header: React.FC<HeaderProps> = ({
         soundOn={soundOn}
         isParentAdmin={isParentAdmin}
         onOpenParentAdmin={onOpenParentAdmin || (() => {})}
+        onExitAdmin={onExitAdmin}
         onToggleSound={toggleSound}
         onToggleDarkMode={onToggleDarkMode}
         onViewModeChange={onViewModeChange}

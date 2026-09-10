@@ -32,6 +32,7 @@ interface AppMenuDrawerProps {
   soundOn: boolean;
   isParentAdmin?: boolean;
   onOpenParentAdmin: () => void;
+  onExitAdmin?: () => void;
   onToggleSound: () => void;
   onToggleDarkMode: () => void;
   onViewModeChange: (mode: 'simple' | 'advanced') => void;
@@ -54,6 +55,7 @@ export const AppMenuDrawer: React.FC<AppMenuDrawerProps> = ({
   soundOn,
   isParentAdmin,
   onOpenParentAdmin,
+  onExitAdmin,
   onToggleSound,
   onToggleDarkMode,
   onViewModeChange,
@@ -211,6 +213,34 @@ export const AppMenuDrawer: React.FC<AppMenuDrawerProps> = ({
                 </div>
                 <ChevronRight className="w-4 h-4 text-indigo-400" />
               </button>
+
+              {/* Exit Admin Mode Option (If currently in Admin Mode) */}
+              {isParentAdmin && onExitAdmin && (
+                <button
+                  id="drawer-exit-admin-mode-btn"
+                  onClick={() => {
+                    onClose();
+                    onExitAdmin();
+                  }}
+                  className="w-full mt-2 px-3.5 py-2.5 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs font-black flex items-center justify-between hover:bg-rose-100 dark:hover:bg-rose-900/40 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">🔒</span>
+                    <div className="text-left">
+                      <div className="flex items-center gap-1.5">
+                        <span>Leave Admin Mode</span>
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-rose-600 text-white uppercase font-bold">
+                          Lock Safe
+                        </span>
+                      </div>
+                      <div className="text-[10px] font-normal text-rose-600/80 dark:text-rose-400/80">
+                        Deactivate elevated parental controls & return to kid vault
+                      </div>
+                    </div>
+                  </div>
+                  <Lock className="w-4 h-4 text-rose-500" />
+                </button>
+              )}
 
               <button
                 id="drawer-add-kid-btn"

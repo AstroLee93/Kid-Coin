@@ -168,6 +168,7 @@ export const INITIAL_KIDS: KidProfile[] = [
     age: 11,
     avatarId: 'ninja',
     colorTheme: 'sky',
+    pin: '1234',
     totalSaved: 245.0,
     availableCash: 35.0,
     weeklyAllowance: 12.0,
@@ -241,6 +242,7 @@ export const INITIAL_KIDS: KidProfile[] = [
     age: 8,
     avatarId: 'dino',
     colorTheme: 'emerald',
+    pin: '1234',
     totalSaved: 95.0,
     availableCash: 18.0,
     weeklyAllowance: 8.0,
@@ -305,10 +307,11 @@ export function loadKidsFromStorage(): KidProfile[] {
     }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_KIDS;
-    // Backfill any missing status
+    // Backfill any missing status and ensure default pin 1234
     return parsed.map((k) => ({
       ...k,
       status: k.status || 'active',
+      pin: k.pin || '1234',
     }));
   } catch (e) {
     console.error('Failed to load kid profiles:', e);
@@ -319,8 +322,8 @@ export function loadKidsFromStorage(): KidProfile[] {
 export const DEFAULT_PARENT_ADMIN: ParentAdminConfig = {
   id: 'parent-admin',
   name: 'Parent / Family Guardian',
-  pin: '9999',
-  recoveryHint: 'Default master PIN is 9999',
+  pin: '1234',
+  recoveryHint: 'Default master PIN is 1234',
   familyAllowanceBudget: 50.0,
   interestRateMonthlyPercent: 5.0,
   autoApproveChores: false,
@@ -339,7 +342,9 @@ export function loadParentAdminFromStorage(): ParentAdminConfig {
       return DEFAULT_PARENT_ADMIN;
     }
     const parsed = JSON.parse(raw);
-    return { ...DEFAULT_PARENT_ADMIN, ...parsed };
+    // If previously saved with legacy 9999 or empty, normalize to default 1234
+    const resolvedPin = parsed.pin === '9999' || !parsed.pin ? '1234' : parsed.pin;
+    return { ...DEFAULT_PARENT_ADMIN, ...parsed, pin: resolvedPin };
   } catch (e) {
     console.error('Failed to load parent admin config:', e);
     return DEFAULT_PARENT_ADMIN;

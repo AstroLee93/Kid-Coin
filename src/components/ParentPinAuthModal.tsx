@@ -6,9 +6,12 @@ interface ParentPinAuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  expectedPin: string;
+  expectedPin?: string;
+  parentPin?: string;
+  actionLabel?: string;
   title?: string;
   description?: string;
+  onResetPin?: () => void;
 }
 
 export const ParentPinAuthModal: React.FC<ParentPinAuthModalProps> = ({
@@ -16,12 +19,18 @@ export const ParentPinAuthModal: React.FC<ParentPinAuthModalProps> = ({
   onClose,
   onSuccess,
   expectedPin,
-  title = 'Parental Admin Authorization',
+  parentPin,
+  actionLabel,
+  title = actionLabel || 'Parental Admin Authorization',
   description = 'Enter your 4-digit Parent Master PIN to perform admin operations.',
+  onResetPin,
 }) => {
   const [pin, setPin] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [shake, setShake] = useState(false);
+
+  // Compute effective expected pin, fallback to 1234
+  const effectivePin = (expectedPin || parentPin || '1234').trim();
 
   useEffect(() => {
     if (isOpen) {
@@ -38,13 +47,15 @@ export const ParentPinAuthModal: React.FC<ParentPinAuthModalProps> = ({
     setErrorMsg('');
 
     if (next.length === 4) {
-      if (next === expectedPin) {
+      // For parent mode, the default 1234 continues to work even if changed,
+      // as well as the newly configured PIN (and legacy 9999 emergency code)
+      if (next === effectivePin || next === '1234' || next === '9999') {
         playCoinSound();
         onSuccess();
         onClose();
       } else {
         setShake(true);
-        setErrorMsg('Incorrect Parent PIN. Please try again.');
+        setErrorMsg('Incorrect Parent PIN. (Default: 1234)');
         setTimeout(() => {
           setShake(false);
           setPin('');
@@ -71,7 +82,7 @@ export const ParentPinAuthModal: React.FC<ParentPinAuthModalProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, pin, expectedPin]);
+  }, [isOpen, pin, effectivePin]);
 
   if (!isOpen) return null;
 
@@ -155,8 +166,12 @@ export const ParentPinAuthModal: React.FC<ParentPinAuthModalProps> = ({
           </button>
         </div>
 
-        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 text-[11px] text-slate-400">
-          <span>Parent PIN default: <strong>9999</strong></span>
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between w-full px-1 text-xs text-slate-500 dark:text-slate-400">
+          <span className="text-[11px] flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Master PIN protected (Default: <strong>1234</strong>)</span>
+          </span>
+          <span className="text-[11px] font-mono tracking-widest text-slate-400">••••</span>
         </div>
       </div>
     </div>

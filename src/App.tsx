@@ -26,6 +26,7 @@ import { PiDeploymentModal } from './components/PiDeploymentModal';
 import { SimpleKidView } from './components/SimpleKidView';
 import { ParentAdminPortal } from './components/ParentAdminPortal';
 import { ParentPinAuthModal } from './components/ParentPinAuthModal';
+import { AdminExitVisualAid } from './components/AdminExitVisualAid';
 import { ShieldCheck, HardDrive, Cpu, Lock } from 'lucide-react';
 
 export default function App() {
@@ -135,6 +136,14 @@ export default function App() {
   const handleUpdateParentAdmin = (updatedConfig: ParentAdminConfig) => {
     setParentAdmin(updatedConfig);
     saveParentAdminToStorage(updatedConfig);
+  };
+
+  const [showExitAdminVisualAid, setShowExitAdminVisualAid] = useState<boolean>(false);
+
+  const handleExitAdmin = () => {
+    setIsParentAdminSessionActive(false);
+    setIsParentAdminPortalOpen(false);
+    setShowExitAdminVisualAid(true);
   };
 
   const handleOpenParentAdmin = () => {
@@ -252,6 +261,7 @@ export default function App() {
         viewMode={viewMode}
         isParentAdmin={isParentAdminSessionActive}
         onOpenParentAdmin={handleOpenParentAdmin}
+        onExitAdmin={handleExitAdmin}
         onToggleDarkMode={() => setIsDarkMode((prev) => !prev)}
         onViewModeChange={handleViewModeChange}
         onSelectKid={handleSelectKid}
@@ -270,7 +280,7 @@ export default function App() {
           themeConfig={themeConfig}
           isDarkMode={isDarkMode}
           onClose={() => setIsParentAdminPortalOpen(false)}
-          onExitAdmin={() => setIsParentAdminPortalOpen(false)}
+          onExitAdmin={handleExitAdmin}
           onUpdateKids={handleUpdateKids}
           onUpdateParentAdmin={handleUpdateParentAdmin}
           onSelectKidView={(id) => {
@@ -403,10 +413,24 @@ export default function App() {
       {/* Parent Master PIN Authentication Modal */}
       <ParentPinAuthModal
         isOpen={isParentAuthModalOpen}
-        parentPin={parentAdmin.pin}
+        expectedPin={parentAdmin.pin || '1234'}
+        parentPin={parentAdmin.pin || '1234'}
         actionLabel={parentAuthPurpose === 'addKid' ? 'Create New Account' : 'Parental Admin Portal'}
+        title={parentAuthPurpose === 'addKid' ? 'Authorize Account Creation' : 'Parental Admin Authorization'}
         onClose={() => setIsParentAuthModalOpen(false)}
         onSuccess={handleParentAuthSuccess}
+        onResetPin={() => {
+          const resetConfig = { ...parentAdmin, pin: '1234' };
+          setParentAdmin(resetConfig);
+          saveParentAdminToStorage(resetConfig);
+        }}
+      />
+
+      {/* Visual Aid Confirmation Overlay upon exiting Admin Mode */}
+      <AdminExitVisualAid
+        isOpen={showExitAdminVisualAid}
+        kidName={activeKid?.name || 'Kid'}
+        onDismiss={() => setShowExitAdminVisualAid(false)}
       />
     </div>
   );
