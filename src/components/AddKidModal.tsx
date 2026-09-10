@@ -18,6 +18,7 @@ export const AddKidModal: React.FC<AddKidModalProps> = ({
   const [age, setAge] = useState('9');
   const [allowance, setAllowance] = useState('10.00');
   const [startingBalance, setStartingBalance] = useState('20.00');
+  const [pin, setPin] = useState('1234');
   const [selectedAvatarId, setSelectedAvatarId] = useState('piggy');
   const [colorTheme, setColorTheme] = useState('sky');
 
@@ -44,6 +45,8 @@ export const AddKidModal: React.FC<AddKidModalProps> = ({
       xp: 100,
       level: 1,
       savingsStreakDays: 1,
+      status: 'active',
+      pin: pin.trim() || '1234',
       lastActivityDate: new Date().toISOString().split('T')[0],
       goals: [
         {
@@ -168,6 +171,22 @@ export const AddKidModal: React.FC<AddKidModalProps> = ({
                 className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+              4-Digit Vault PIN
+            </label>
+            <input
+              type="text"
+              maxLength={4}
+              required
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              placeholder="1234"
+              className="w-full px-3.5 py-2 text-sm font-mono font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+            />
+            <p className="text-[11px] text-slate-400 mt-0.5">The child will use this 4-digit PIN to unlock their personal vault.</p>
           </div>
 
           <div>

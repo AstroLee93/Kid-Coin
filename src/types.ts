@@ -106,6 +106,24 @@ export interface KidProfile {
   transactions: Transaction[];
   chores: Chore[];
   pin?: string;
+  status: 'active' | 'suspended';
+  suspendedReason?: string;
+  suspendedAt?: string;
+  spendingLimitPerWeek?: number;
+  requireParentApproval?: boolean;
+  parentNotes?: string;
+}
+
+export interface ParentAdminConfig {
+  id: string; // 'parent-admin'
+  name: string; // 'Parent / Guardian'
+  pin: string; // Master 4-digit PIN (default '9999')
+  recoveryHint?: string;
+  familyAllowanceBudget: number;
+  interestRateMonthlyPercent: number; // e.g. 5% monthly "Bank of Mom & Dad" interest
+  autoApproveChores: boolean;
+  requirePinForKidSwitch: boolean;
+  lastLoginAt?: string;
 }
 
 export interface CoachAdvice {

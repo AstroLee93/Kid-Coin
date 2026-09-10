@@ -18,6 +18,8 @@ interface HeaderProps {
   themeConfig: ThemeOption;
   isDarkMode: boolean;
   viewMode: 'simple' | 'advanced';
+  isParentAdmin?: boolean;
+  onOpenParentAdmin?: () => void;
   onToggleDarkMode: () => void;
   onViewModeChange: (mode: 'simple' | 'advanced') => void;
   onSelectKid: (id: string) => void;
@@ -33,6 +35,8 @@ export const Header: React.FC<HeaderProps> = ({
   themeConfig,
   isDarkMode,
   viewMode,
+  isParentAdmin = false,
+  onOpenParentAdmin,
   onToggleDarkMode,
   onViewModeChange,
   onSelectKid,
@@ -140,7 +144,20 @@ export const Header: React.FC<HeaderProps> = ({
                       </button>
                     );
                   })}
-                  <div className="border-t border-slate-100 dark:border-slate-700/80 my-1 pt-1">
+                  <div className="border-t border-slate-100 dark:border-slate-700/80 my-1 pt-1 space-y-0.5">
+                    {onOpenParentAdmin && (
+                      <button
+                        id="admin-portal-dropdown-btn"
+                        onClick={() => {
+                          setDropdownOpen(false);
+                          onOpenParentAdmin();
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 flex items-center gap-2 transition-colors cursor-pointer"
+                      >
+                        <span>🛡️</span>
+                        <span>Parental (Admin) Portal</span>
+                      </button>
+                    )}
                     <button
                       id="add-kid-btn"
                       onClick={() => {
@@ -156,6 +173,19 @@ export const Header: React.FC<HeaderProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Parent Admin Active Pill */}
+            {isParentAdmin && onOpenParentAdmin && (
+              <button
+                id="header-admin-active-badge"
+                onClick={onOpenParentAdmin}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 dark:bg-indigo-950/80 text-indigo-800 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs font-black cursor-pointer shadow-xs hover:bg-indigo-200 transition-colors"
+                title="Parent Admin Mode Active - Click to open portal"
+              >
+                <span>🛡️</span>
+                <span>Admin</span>
+              </button>
+            )}
 
             {/* Savings Streak Badge */}
             <div 
@@ -194,6 +224,8 @@ export const Header: React.FC<HeaderProps> = ({
         isDarkMode={isDarkMode}
         viewMode={viewMode}
         soundOn={soundOn}
+        isParentAdmin={isParentAdmin}
+        onOpenParentAdmin={onOpenParentAdmin || (() => {})}
         onToggleSound={toggleSound}
         onToggleDarkMode={onToggleDarkMode}
         onViewModeChange={onViewModeChange}

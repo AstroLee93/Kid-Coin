@@ -1,4 +1,4 @@
-import { KidProfile, AvatarItem, Badge, SavingsGoal } from '../types';
+import { KidProfile, AvatarItem, Badge, SavingsGoal, ParentAdminConfig } from '../types';
 
 export const INITIAL_AVATARS: AvatarItem[] = [
   {
@@ -175,6 +175,7 @@ export const INITIAL_KIDS: KidProfile[] = [
     xp: 650,
     level: 3,
     savingsStreakDays: 14,
+    status: 'active',
     lastActivityDate: new Date().toISOString().split('T')[0],
     goals: [
       {
@@ -247,6 +248,7 @@ export const INITIAL_KIDS: KidProfile[] = [
     xp: 420,
     level: 2,
     savingsStreakDays: 9,
+    status: 'active',
     lastActivityDate: new Date().toISOString().split('T')[0],
     goals: [
       {
@@ -302,10 +304,54 @@ export function loadKidsFromStorage(): KidProfile[] {
       return INITIAL_KIDS;
     }
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : INITIAL_KIDS;
+    if (!Array.isArray(parsed) || parsed.length === 0) return INITIAL_KIDS;
+    // Backfill any missing status
+    return parsed.map((k) => ({
+      ...k,
+      status: k.status || 'active',
+    }));
   } catch (e) {
     console.error('Failed to load kid profiles:', e);
     return INITIAL_KIDS;
+  }
+}
+
+export const DEFAULT_PARENT_ADMIN: ParentAdminConfig = {
+  id: 'parent-admin',
+  name: 'Parent / Family Guardian',
+  pin: '9999',
+  recoveryHint: 'Default master PIN is 9999',
+  familyAllowanceBudget: 50.0,
+  interestRateMonthlyPercent: 5.0,
+  autoApproveChores: false,
+  requirePinForKidSwitch: false,
+  lastLoginAt: new Date().toISOString(),
+};
+
+const PARENT_ADMIN_KEY = 'kidcoin_vault_parent_admin_v1';
+
+export function loadParentAdminFromStorage(): ParentAdminConfig {
+  if (typeof window === 'undefined') return DEFAULT_PARENT_ADMIN;
+  try {
+    const raw = localStorage.getItem(PARENT_ADMIN_KEY);
+    if (!raw) {
+      saveParentAdminToStorage(DEFAULT_PARENT_ADMIN);
+      return DEFAULT_PARENT_ADMIN;
+    }
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_PARENT_ADMIN, ...parsed };
+  } catch (e) {
+    console.error('Failed to load parent admin config:', e);
+    return DEFAULT_PARENT_ADMIN;
+  }
+}
+
+export function saveParentAdminToStorage(config: ParentAdminConfig) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(PARENT_ADMIN_KEY, JSON.stringify(config));
+  } catch (e) {
+    console.error('Failed to save parent admin config:', e);
   }
 }
 

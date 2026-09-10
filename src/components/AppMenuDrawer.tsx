@@ -30,6 +30,8 @@ interface AppMenuDrawerProps {
   isDarkMode: boolean;
   viewMode: 'simple' | 'advanced';
   soundOn: boolean;
+  isParentAdmin?: boolean;
+  onOpenParentAdmin: () => void;
   onToggleSound: () => void;
   onToggleDarkMode: () => void;
   onViewModeChange: (mode: 'simple' | 'advanced') => void;
@@ -50,6 +52,8 @@ export const AppMenuDrawer: React.FC<AppMenuDrawerProps> = ({
   isDarkMode,
   viewMode,
   soundOn,
+  isParentAdmin,
+  onOpenParentAdmin,
   onToggleSound,
   onToggleDarkMode,
   onViewModeChange,
@@ -180,16 +184,44 @@ export const AppMenuDrawer: React.FC<AppMenuDrawerProps> = ({
                 </div>
               )}
 
+              {/* Parental Admin Portal Access Button */}
+              <button
+                id="drawer-parent-admin-portal-btn"
+                onClick={() => {
+                  onClose();
+                  onOpenParentAdmin();
+                }}
+                className="w-full mt-2 px-3.5 py-2.5 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-black flex items-center justify-between hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🛡️</span>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span>Parental Admin Portal</span>
+                      {isParentAdmin && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-600 text-white uppercase font-bold">
+                          Active
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[10px] font-normal text-indigo-600/80 dark:text-indigo-400/80">
+                      Create, delete, suspend accounts & allowance
+                    </div>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-indigo-400" />
+              </button>
+
               <button
                 id="drawer-add-kid-btn"
                 onClick={() => {
                   onClose();
                   onOpenAddKid();
                 }}
-                className="w-full mt-1 px-3 py-2 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-50 transition-colors cursor-pointer"
+                className="w-full mt-1.5 px-3 py-2 rounded-xl border border-dashed border-emerald-300 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-50 transition-colors cursor-pointer"
               >
                 <UserPlus className="w-3.5 h-3.5" />
-                <span>+ Add Sibling Account</span>
+                <span>+ Create Account (Parent Admin)</span>
               </button>
             </div>
 

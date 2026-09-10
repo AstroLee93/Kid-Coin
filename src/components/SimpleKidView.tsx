@@ -228,6 +228,22 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
 
   return (
     <div className="w-full max-w-4xl mx-auto px-4 py-6 space-y-6">
+      {/* Suspended Notice */}
+      {kid.status === 'suspended' && (
+        <div className="p-4 rounded-3xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800/80 text-rose-900 dark:text-rose-200 flex items-center gap-3.5 shadow-xs animate-in fade-in">
+          <div className="w-10 h-10 rounded-2xl bg-rose-100 dark:bg-rose-900/60 text-rose-600 dark:text-rose-400 flex items-center justify-center text-xl shrink-0">
+            ⛔
+          </div>
+          <div className="text-xs">
+            <span className="font-black text-sm block">Account Paused by Parents</span>
+            <span>
+              This vault is currently suspended {kid.suspendedReason ? `("${kid.suspendedReason}")` : ''}. 
+              Spending and chore approvals are on hold until a parent reactivates it in the Parental Admin Portal.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Friendly Celebration Toast */}
       {celebrationMsg && (
         <div className="w-full p-4 rounded-2xl bg-amber-400 text-amber-950 font-black text-center shadow-lg border-2 border-amber-300 flex items-center justify-center gap-2 animate-bounce">

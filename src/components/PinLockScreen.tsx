@@ -7,7 +7,9 @@ import { Lock, Unlock, ShieldAlert, KeyRound, Delete, Users, HelpCircle, Check }
 interface PinLockScreenProps {
   kid: KidProfile;
   allKids: KidProfile[];
+  parentAdminPin: string;
   onUnlock: () => void;
+  onUnlockParentAdmin: () => void;
   onSwitchKid: (kidId: string) => void;
   onUpdateKidPin: (kidId: string, newPin: string) => void;
 }
@@ -15,7 +17,9 @@ interface PinLockScreenProps {
 export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   kid,
   allKids,
+  parentAdminPin,
   onUnlock,
+  onUnlockParentAdmin,
   onSwitchKid,
   onUpdateKidPin,
 }) => {
@@ -23,12 +27,12 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [shake, setShake] = useState(false);
   const [showHint, setShowHint] = useState(false);
-  const [isChangingPin, setIsChangingPin] = useState(false);
-  const [newPinInput, setNewPinInput] = useState('');
+  const [parentModeRequested, setParentModeRequested] = useState(false);
 
   const currentKidAvatar = INITIAL_AVATARS.find((a) => a.id === kid.avatarId) || INITIAL_AVATARS[0];
   const expectedPin = kid.pin || (kid.id === 'kid-maya' ? '5678' : '1234');
-  const parentOverride = '9999';
+  const parentOverride = parentAdminPin || '9999';
+  const isSuspended = kid.status === 'suspended';
 
   // Handle digit press
   const handleDigit = (digit: string) => {
@@ -53,10 +57,43 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
   };
 
   const verifyPin = (pin: string) => {
-    if (pin === expectedPin || pin === parentOverride) {
+    // Check if Parent Master PIN entered
+    if (pin === parentOverride) {
       playCoinSound();
       setErrorMsg('');
-      onUnlock();
+      if (parentModeRequested || isSuspended) {
+        onUnlockParentAdmin();
+      } else {
+        onUnlock();
+      }
+      return;
+    }
+
+    // If account is suspended and tried kid pin
+    if (isSuspended && pin === expectedPin) {
+      setShake(true);
+      setErrorMsg('This account is suspended by a parent. Ask parent to reactivate.');
+      setTimeout(() => {
+        setShake(false);
+        setEnteredPin('');
+      }, 1000);
+      return;
+    }
+
+    // Normal kid pin check
+    if (pin === expectedPin) {
+      if (isSuspended) {
+        setShake(true);
+        setErrorMsg('Account suspended. Enter Parent Master PIN to manage.');
+        setTimeout(() => {
+          setShake(false);
+          setEnteredPin('');
+        }, 1000);
+      } else {
+        playCoinSound();
+        setErrorMsg('');
+        onUnlock();
+      }
     } else {
       setShake(true);
       setErrorMsg('Incorrect PIN! Try again or ask a parent.');
@@ -91,23 +128,51 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
       >
         {/* Top Profile Badge */}
         <div className="flex flex-col items-center text-center space-y-2">
-          <div className="relative">
-            <div className="w-20 h-20 rounded-3xl bg-amber-50 dark:bg-slate-800 border-2 border-amber-200 dark:border-slate-700 flex items-center justify-center text-4xl shadow-md">
-              {currentKidAvatar.emoji}
-            </div>
-            <div className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-md">
-              <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
-            </div>
-          </div>
+          {parentModeRequested ? (
+            <>
+              <div className="w-20 h-20 rounded-3xl bg-indigo-50 dark:bg-indigo-950/60 border-2 border-indigo-200 dark:border-indigo-800 flex items-center justify-center text-4xl shadow-md">
+                🛡️
+              </div>
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
+                  Parental Admin Access
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Enter Master Parent PIN to manage accounts
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="relative">
+                <div className={`w-20 h-20 rounded-3xl ${isSuspended ? 'bg-rose-50 dark:bg-rose-950/40 border-2 border-rose-300 dark:border-rose-800' : 'bg-amber-50 dark:bg-slate-800 border-2 border-amber-200 dark:border-slate-700'} flex items-center justify-center text-4xl shadow-md`}>
+                  {currentKidAvatar.emoji}
+                </div>
+                <div className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full ${isSuspended ? 'bg-rose-500' : 'bg-amber-500'} text-white flex items-center justify-center shadow-md`}>
+                  <Lock className="w-3.5 h-3.5 stroke-[2.5]" />
+                </div>
+              </div>
 
-          <div>
-            <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">
-              {kid.name}'s Vault
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Enter 4-digit PIN to access savings records
-            </p>
-          </div>
+              <div>
+                <h2 className="text-xl font-black tracking-tight text-slate-900 dark:text-white flex items-center justify-center gap-1.5">
+                  <span>{kid.name}'s Vault</span>
+                  {isSuspended && (
+                    <span className="text-[10px] uppercase font-black px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300">
+                      Suspended
+                    </span>
+                  )}
+                </h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  {isSuspended ? 'This account has been paused by a parent' : 'Enter 4-digit PIN to access savings records'}
+                </p>
+                {isSuspended && kid.suspendedReason && (
+                  <p className="text-[11px] font-bold text-rose-600 dark:text-rose-400 mt-1">
+                    "{kid.suspendedReason}"
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {/* PIN Indicators (4 dots) */}
@@ -205,6 +270,36 @@ export const PinLockScreen: React.FC<PinLockScreenProps> = ({
               ))}
             </div>
           )}
+
+          {/* Parent Mode Toggle */}
+          <div className="pt-1">
+            {parentModeRequested ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setParentModeRequested(false);
+                  setEnteredPin('');
+                  setErrorMsg('');
+                }}
+                className="text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                <span>← Back to {kid.name}'s Vault PIN</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setParentModeRequested(true);
+                  setEnteredPin('');
+                  setErrorMsg('');
+                }}
+                className="text-xs font-bold text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 cursor-pointer transition-colors"
+              >
+                <span>🛡️</span>
+                <span>Parental (Admin) Access</span>
+              </button>
+            )}
+          </div>
 
           {/* PIN Hint / Parent Help */}
           <div className="text-center">
