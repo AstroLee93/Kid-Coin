@@ -4,6 +4,8 @@ import { playCoinSound, playMilestoneFanfare, playVictorySound } from '../lib/so
 import { sendKidNotification } from '../lib/notifications';
 import { ThemeOption } from '../lib/theme';
 import { GoalIcon } from './IconRenderer';
+import { RocketGoalTrack } from './RocketGoalTrack';
+import { RocketTakeoffModal } from './RocketTakeoffModal';
 import confetti from 'canvas-confetti';
 import { 
   Gamepad2, 
@@ -36,6 +38,7 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
 }) => {
   const [quickDepositAmount, setQuickDepositAmount] = useState<string>('');
   const [showQuickDeposit, setShowQuickDeposit] = useState(false);
+  const [showRocketLaunchModal, setShowRocketLaunchModal] = useState(false);
 
   // Primary goal or fallback to first goal
   const primaryGoal = kid.goals.find((g) => g.priority === 'primary') || kid.goals[0];
@@ -144,6 +147,7 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
 
     if (newPercent >= 100) {
       playVictorySound();
+      setShowRocketLaunchModal(true);
       confetti({
         particleCount: 120,
         spread: 80,
@@ -322,6 +326,21 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
             </p>
           </div>
         </div>
+
+        {/* Rocket Ship Cosmic Goal Flight Tracker */}
+        <RocketGoalTrack 
+          goal={primaryGoal} 
+          kid={kid} 
+          onLaunchRocket={() => setShowRocketLaunchModal(true)} 
+        />
+
+        {/* Rocket Blastoff Celebration Modal */}
+        <RocketTakeoffModal
+          isOpen={showRocketLaunchModal}
+          goal={primaryGoal}
+          kid={kid}
+          onClose={() => setShowRocketLaunchModal(false)}
+        />
 
         {/* Flagship Countdown Progress Bar with Re-Coloring */}
         <div className="mt-3">

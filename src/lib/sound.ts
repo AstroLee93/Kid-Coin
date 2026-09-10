@@ -126,3 +126,52 @@ export function playVictorySound() {
     console.error('Audio play error:', e);
   }
 }
+
+/**
+ * Play a rocket thruster rumble and ascending pitch launch sound effect
+ */
+export function playRocketLaunchSound() {
+  if (!soundEnabled) return;
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    // Thruster low rumble (synthesized using modulated low frequency oscillator)
+    const rumbleOsc = ctx.createOscillator();
+    const rumbleGain = ctx.createGain();
+    rumbleOsc.type = 'sawtooth';
+    rumbleOsc.frequency.setValueAtTime(65, now);
+    rumbleOsc.frequency.exponentialRampToValueAtTime(220, now + 2.2);
+
+    rumbleGain.gain.setValueAtTime(0.05, now);
+    rumbleGain.gain.linearRampToValueAtTime(0.25, now + 0.6);
+    rumbleGain.gain.exponentialRampToValueAtTime(0.01, now + 2.5);
+
+    rumbleOsc.connect(rumbleGain);
+    rumbleGain.connect(ctx.destination);
+
+    rumbleOsc.start(now);
+    rumbleOsc.stop(now + 2.6);
+
+    // Whistling ascending rocket burn
+    const jetOsc = ctx.createOscillator();
+    const jetGain = ctx.createGain();
+    jetOsc.type = 'triangle';
+    jetOsc.frequency.setValueAtTime(180, now + 0.3);
+    jetOsc.frequency.exponentialRampToValueAtTime(1400, now + 2.0);
+
+    jetGain.gain.setValueAtTime(0.01, now + 0.3);
+    jetGain.gain.linearRampToValueAtTime(0.18, now + 1.2);
+    jetGain.gain.exponentialRampToValueAtTime(0.001, now + 2.4);
+
+    jetOsc.connect(jetGain);
+    jetGain.connect(ctx.destination);
+
+    jetOsc.start(now + 0.3);
+    jetOsc.stop(now + 2.5);
+  } catch (e) {
+    console.error('Rocket audio error:', e);
+  }
+}

@@ -6,6 +6,8 @@ import { INITIAL_AVATARS } from '../lib/storage';
 import { sendKidNotification } from '../lib/notifications';
 import { ChoreQuestSyncModal } from './ChoreQuestSyncModal';
 import { GoalIcon, BadgeIcon, ChoreIcon } from './IconRenderer';
+import { RocketGoalTrack } from './RocketGoalTrack';
+import { RocketTakeoffModal } from './RocketTakeoffModal';
 import { 
   Plus, 
   Minus, 
@@ -51,6 +53,7 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
 
   const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
   const [celebrationMsg, setCelebrationMsg] = useState<string | null>(null);
+  const [showRocketLaunchModal, setShowRocketLaunchModal] = useState(false);
 
   const [addChoreOpen, setAddChoreOpen] = useState(false);
   const [choreQuestModalOpen, setChoreQuestModalOpen] = useState(false);
@@ -105,7 +108,8 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
 
       if (reachedGoal && activeGoal.currentSaved < activeGoal.targetCost) {
         playVictorySound();
-        setCelebrationMsg(`🎉 YOU HIT 100% OF YOUR GOAL FOR ${activeGoal.title.toUpperCase()}!`);
+        setShowRocketLaunchModal(true);
+        setCelebrationMsg(`🎉 YOU HIT 100% OF YOUR GOAL FOR ${activeGoal.title.toUpperCase()}! 🚀`);
       } else {
         setCelebrationMsg(`+$${amount.toFixed(2)} added to ${activeGoal.title}! 🚀`);
       }
@@ -393,6 +397,21 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Rocket Ship Cosmic Goal Flight Tracker */}
+          <RocketGoalTrack
+            goal={activeGoal}
+            kid={kid}
+            onLaunchRocket={() => setShowRocketLaunchModal(true)}
+          />
+
+          {/* Rocket Blastoff Celebration Modal */}
+          <RocketTakeoffModal
+            isOpen={showRocketLaunchModal}
+            goal={activeGoal}
+            kid={kid}
+            onClose={() => setShowRocketLaunchModal(false)}
+          />
 
           {/* Big satisfying Progress Bar */}
           <div className="space-y-2 mb-8">

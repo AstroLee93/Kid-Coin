@@ -32,12 +32,38 @@ export const CoachTips: React.FC<CoachTipsProps> = ({ kid }) => {
         }),
       });
 
-      const data = await res.json();
-      if (data.success && data.tips) {
-        setAdvice(data.tips);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && data.tips) {
+          setAdvice(data.tips);
+          return;
+        }
       }
+      // Fallback if response was not ok
+      setAdvice({
+        headline: `Every coin saved brings you one step closer to your ${primaryGoal.title}!`,
+        milestoneTip: `Aim to hit your next target checkpoint by completing chores this week!`,
+        fastTrackIdeas: [
+          'Offer to help tidy the living room or sweep the kitchen for a chore bonus.',
+          'Sort clean laundry and put away socks for a chore reward.',
+          'Save half of any chore earnings directly in your locked vault.',
+        ],
+        spendingTradeoff: 'Skipping small impulse snacks keeps more dollars in your pocket.',
+        estimatedPace: 'Consistent saving every week adds up faster than you think!',
+      });
     } catch (e) {
       console.warn('Failed to load online tips, using offline mentor algorithm', e);
+      setAdvice({
+        headline: `Every coin saved brings you one step closer to your ${primaryGoal.title}!`,
+        milestoneTip: `Aim to hit your next target checkpoint by completing chores this week!`,
+        fastTrackIdeas: [
+          'Offer to help tidy the living room or sweep the kitchen for a chore bonus.',
+          'Sort clean laundry and put away socks for a chore reward.',
+          'Save half of any chore earnings directly in your locked vault.',
+        ],
+        spendingTradeoff: 'Skipping small impulse snacks keeps more dollars in your pocket.',
+        estimatedPace: 'Consistent saving every week adds up faster than you think!',
+      });
     } finally {
       setLoading(false);
     }

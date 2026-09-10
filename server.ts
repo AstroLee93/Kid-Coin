@@ -150,7 +150,8 @@ app.post("/api/tips", async (req, res) => {
     const ai = getAI();
 
     if (ai) {
-      const prompt = `You are "Captain Penny", an enthusiastic, warm, kid-friendly financial mentor cartoon companion.
+      try {
+        const prompt = `You are "Captain Penny", an enthusiastic, warm, kid-friendly financial mentor cartoon companion.
 A kid named ${kidName} (around ${age} years old) is saving up for: "${goalName}" which costs $${targetCost.toFixed(2)}.
 Current savings: $${currentSaved.toFixed(2)} (${progressPercent}% completed).
 Remaining to save: $${remaining.toFixed(2)}.
@@ -166,23 +167,30 @@ Provide a response in JSON format with:
 
 Keep tone fun, motivational, and educational without being preachy. Return STRICTLY JSON.`;
 
-      const response = await ai.models.generateContent({
-        model: "gemini-3.8-flash",
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          temperature: 0.7,
-        },
-      });
+        const response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.7,
+          },
+        });
 
-      const text = response.text?.trim();
-      if (text) {
-        try {
-          const parsed = JSON.parse(text);
-          return res.json({ success: true, tips: parsed });
-        } catch {
-          // fallback to algorithmic tips if JSON parse fails
+        const text = response.text?.trim();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            return res.json({ success: true, tips: parsed });
+          } catch {
+            // fallback to algorithmic tips if JSON parse fails
+          }
         }
+      } catch (aiError: any) {
+        // High demand spikes (503) or rate limits: gracefully fallback to algorithmic tips
+        console.warn(
+          "Gemini service temporarily unavailable (e.g. 503 high demand), serving algorithmic savings coach:",
+          aiError?.message || aiError
+        );
       }
     }
 
@@ -192,7 +200,7 @@ Keep tone fun, motivational, and educational without being preachy. Return STRIC
     const nextMilestoneAmount = (targetCost * (nextMilestonePercent / 100)).toFixed(2);
     const neededForNext = Math.max(0, parseFloat(nextMilestoneAmount) - currentSaved).toFixed(2);
 
-    res.json({
+    return res.json({
       success: true,
       tips: {
         headline:
@@ -214,9 +222,22 @@ Keep tone fun, motivational, and educational without being preachy. Return STRIC
             : `Set a weekly chore goal of $10 to unlock your ${goalName} in just ${Math.ceil(remaining / 10)} weeks!`,
       },
     });
-  } catch (error) {
-    console.error("Error generating tips:", error);
-    res.status(500).json({ error: "Failed to generate savings tips" });
+  } catch (error: any) {
+    console.warn("Error in tips endpoint, returning resilient default tips:", error?.message || error);
+    return res.json({
+      success: true,
+      tips: {
+        headline: "Every coin saved brings you one step closer to your dream goal!",
+        milestoneTip: "Aim to hit your next 25% milestone by stashing your allowance!",
+        fastTrackIdeas: [
+          "Offer to help tidy the living room or sweep the kitchen.",
+          "Sort clean laundry and put away socks for a chore bonus.",
+          "Save half of any chore earnings directly in your locked vault.",
+        ],
+        spendingTradeoff: "Skipping small impulse snacks keeps more dollars in your pocket.",
+        estimatedPace: "Consistent saving every week adds up faster than you think!",
+      },
+    });
   }
 });
 
