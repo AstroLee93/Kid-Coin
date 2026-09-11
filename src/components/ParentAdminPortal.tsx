@@ -2,8 +2,17 @@ import React, { useState } from 'react';
 import { KidProfile, ParentAdminConfig, Chore } from '../types';
 import { ThemeOption } from '../lib/theme';
 import { INITIAL_AVATARS, DEFAULT_PARENT_ADMIN } from '../lib/storage';
-import { playCoinSound } from '../lib/sound';
+import { playCoinSound, playMilestoneFanfare } from '../lib/sound';
 import { sendKidNotification } from '../lib/notifications';
+import {
+  fetchFromChoreQuest,
+  pushToChoreQuest,
+  mergeChoreQuestDatabaseIntoVault,
+  exportVaultToChoreQuestDatabase,
+  applyChoreQuestMonthlyInterest,
+  SAMPLE_CHOREQUEST_FAMILY_DB,
+  PORTAINER_DOCKER_COMPOSE_SNIPPET,
+} from '../lib/choreQuestSync';
 import {
   ShieldCheck,
   UserPlus,
@@ -31,7 +40,16 @@ import {
   Plus,
   RefreshCw,
   X,
-  Info
+  Info,
+  Coins,
+  Server,
+  Upload,
+  Copy,
+  Check,
+  Rocket,
+  Flame,
+  Star,
+  Percent
 } from 'lucide-react';
 
 interface ParentAdminPortalProps {
@@ -76,8 +94,20 @@ export const ParentAdminPortal: React.FC<ParentAdminPortalProps> = ({
   const onSelectKidView = propOnSelectKidView || onSelectKid || (() => {});
   const onUpdateParentAdmin = propOnUpdateParentAdmin || onUpdateAdminConfig || (() => {});
 
-  // Tabs: 'accounts' | 'allowance' | 'chores' | 'security'
-  const [activeTab, setActiveTab] = useState<'accounts' | 'allowance' | 'chores' | 'security'>('accounts');
+  // Tabs: 'accounts' | 'allowance' | 'chores' | 'security' | 'chorequest'
+  const [activeTab, setActiveTab] = useState<'accounts' | 'allowance' | 'chores' | 'security' | 'chorequest'>('accounts');
+
+  // Chore-Quest Integration state
+  const [cqEndpoint, setCqEndpoint] = useState(parentAdmin.choreQuestEndpoint || 'http://localhost:5000');
+  const [cqRatio, setCqRatio] = useState(parentAdmin.kidCoinRatio ?? 0.10);
+  const [cqInterestRate, setCqInterestRate] = useState(parentAdmin.bankInterestRateMonthlyPercent ?? 5);
+  const [cqAutoDeposit, setCqAutoDeposit] = useState(parentAdmin.autoDepositChoresToGoal ?? true);
+  const [cqPulling, setCqPulling] = useState(false);
+  const [cqPushing, setCqPushing] = useState(false);
+  const [cqStatusMsg, setCqStatusMsg] = useState<{ type: 'success' | 'error' | 'info'; text: string } | null>(null);
+  const [cqJsonInput, setCqJsonInput] = useState('');
+  const [cqExportCopied, setCqExportCopied] = useState(false);
+  const [cqInterestReport, setCqInterestReport] = useState<string | null>(null);
 
   // Modal states
   const [suspendKidModal, setSuspendKidModal] = useState<KidProfile | null>(null);
@@ -524,6 +554,19 @@ export const ParentAdminPortal: React.FC<ParentAdminPortalProps> = ({
         >
           <Settings className="w-4 h-4" />
           <span>Parent Security & PIN</span>
+        </button>
+
+        <button
+          id="admin-chorequest-tab-btn"
+          onClick={() => setActiveTab('chorequest')}
+          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-black flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeTab === 'chorequest'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+          }`}
+        >
+          <span>⚔️</span>
+          <span>Chore-Quest Integration</span>
         </button>
       </div>
 
@@ -1038,6 +1081,447 @@ export const ParentAdminPortal: React.FC<ParentAdminPortalProps> = ({
               <span>Export Family Vault Encrypted Backup</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* TAB 5: CHORE-QUEST INTEGRATION (ASTROLEE93/CHORE-QUEST ON RASPBERRY PI)  */}
+      {/* ========================================================================= */}
+      {activeTab === 'chorequest' && (
+        <div className="space-y-6 animate-in fade-in">
+          
+          {/* Header Card */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-indigo-900 via-purple-900 to-slate-900 text-white shadow-xl relative overflow-hidden border border-indigo-700/40">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-3.5">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-500/30 border border-indigo-400/40 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                  ⚔️
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2 className="text-xl font-black text-white">Chore-Quest Integration Stack</h2>
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                      Docker / Portainer Compatible
+                    </span>
+                  </div>
+                  <p className="text-xs text-indigo-200 mt-1">
+                    Connects KidCoin Vault directly to <code className="font-mono bg-black/30 px-1 py-0.5 rounded text-indigo-300">AstroLee93/Chore-Quest</code> running on your Raspberry Pi.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const merged = mergeChoreQuestDatabaseIntoVault(SAMPLE_CHOREQUEST_FAMILY_DB, kids, parentAdmin);
+                    onUpdateKids(merged.updatedKids);
+                    onUpdateParentAdmin(merged.updatedConfig);
+                    playMilestoneFanfare();
+                    setCqStatusMsg({
+                      type: 'success',
+                      text: `Loaded official Chore-Quest demo family: Leo, Maya, Sam, chores & interest settings!`,
+                    });
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs flex items-center gap-1.5 backdrop-blur-sm border border-white/20 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Load Demo Family</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Status Message Notification */}
+          {cqStatusMsg && (
+            <div
+              className={`p-4 rounded-2xl border flex items-start gap-3 text-xs animate-in fade-in ${
+                cqStatusMsg.type === 'success'
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200'
+                  : cqStatusMsg.type === 'error'
+                  ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                  : 'bg-indigo-50 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-800 text-indigo-800 dark:text-indigo-200'
+              }`}
+            >
+              {cqStatusMsg.type === 'success' ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+              ) : cqStatusMsg.type === 'error' ? (
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              ) : (
+                <RefreshCw className="w-4 h-4 text-indigo-600 animate-spin shrink-0 mt-0.5" />
+              )}
+              <div className="flex-1 font-medium leading-relaxed">{cqStatusMsg.text}</div>
+            </div>
+          )}
+
+          {/* Configuration Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            
+            {/* 1. Live Container Connection */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <Server className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Container Endpoint</h3>
+                  <p className="text-[11px] text-slate-500">Chore-Quest REST API URL on your local network</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Chore-Quest URL
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="url"
+                    value={cqEndpoint}
+                    onChange={(e) => setCqEndpoint(e.target.value)}
+                    placeholder="http://raspberrypi.local:5000"
+                    className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onUpdateParentAdmin({ ...parentAdmin, choreQuestEndpoint: cqEndpoint });
+                      setCqStatusMsg({ type: 'success', text: `Saved Chore-Quest endpoint: ${cqEndpoint}` });
+                    }}
+                    className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition-colors cursor-pointer"
+                  >
+                    Save
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
+                  KidCoin server proxies requests to this URL, avoiding all browser CORS restrictions.
+                </p>
+              </div>
+
+              {/* Action Buttons: Pull and Push */}
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  type="button"
+                  disabled={cqPulling}
+                  onClick={async () => {
+                    setCqPulling(true);
+                    setCqStatusMsg({ type: 'info', text: `Contacting Chore-Quest at ${cqEndpoint}...` });
+                    try {
+                      const res = await fetchFromChoreQuest(cqEndpoint, undefined, cqRatio);
+                      if (res.success && res.familyDb) {
+                        const merged = mergeChoreQuestDatabaseIntoVault(res.familyDb, kids, parentAdmin);
+                        onUpdateKids(merged.updatedKids);
+                        onUpdateParentAdmin(merged.updatedConfig);
+                        playMilestoneFanfare();
+                        setCqStatusMsg({
+                          type: 'success',
+                          text: `Live Sync Successful! Merged ${merged.importedKidCount} kids and ${merged.importedChoreCount} chore quests from ${cqEndpoint}.`,
+                        });
+                      } else {
+                        setCqStatusMsg({ type: 'error', text: res.message });
+                      }
+                    } catch (err: any) {
+                      setCqStatusMsg({ type: 'error', text: `Sync failed: ${err.message}` });
+                    } finally {
+                      setCqPulling(false);
+                    }
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 border border-indigo-200 dark:border-indigo-800"
+                >
+                  {cqPulling ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>📥</span>}
+                  <span>Pull from Pi</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={cqPushing}
+                  onClick={async () => {
+                    setCqPushing(true);
+                    setCqStatusMsg({ type: 'info', text: `Pushing family database to ${cqEndpoint}...` });
+                    try {
+                      const exportDb = exportVaultToChoreQuestDatabase(kids, parentAdmin);
+                      const res = await pushToChoreQuest(cqEndpoint, exportDb);
+                      if (res.success) {
+                        playMilestoneFanfare();
+                        setCqStatusMsg({
+                          type: 'success',
+                          text: `Pushed ${exportDb.kids.length} kids and ${exportDb.chores.length} chore quests to Chore-Quest container!`,
+                        });
+                      } else {
+                        setCqStatusMsg({ type: 'error', text: res.message });
+                      }
+                    } catch (err: any) {
+                      setCqStatusMsg({ type: 'error', text: `Push failed: ${err.message}` });
+                    } finally {
+                      setCqPushing(false);
+                    }
+                  }}
+                  className="py-2.5 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/60 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 border border-purple-200 dark:border-purple-800"
+                >
+                  {cqPushing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <span>📤</span>}
+                  <span>Push to Pi</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Point-to-Cash Exchange Ratio */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <Coins className="w-5 h-5 text-amber-500" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Star Exchange Ratio</h3>
+                  <p className="text-[11px] text-slate-500">How much cash each Chore-Quest star/point pays</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Rate:</span>
+                <span className="text-sm font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2.5 py-1 rounded-lg border border-indigo-200 dark:border-indigo-800">
+                  ${cqRatio.toFixed(2)} per star (10★ = ${(10 * cqRatio).toFixed(2)})
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min="0.01"
+                max="1.00"
+                step="0.01"
+                value={cqRatio}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setCqRatio(val);
+                  onUpdateParentAdmin({ ...parentAdmin, kidCoinRatio: val });
+                }}
+                className="w-full accent-indigo-600 cursor-pointer"
+              />
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { label: '10:1 (10★ = $1)', ratio: 0.10 },
+                  { label: '5:1 (5★ = $1)', ratio: 0.20 },
+                  { label: '2:1 (2★ = $1)', ratio: 0.50 },
+                  { label: '1:1 (1★ = $1)', ratio: 1.00 },
+                ].map((p) => (
+                  <button
+                    key={p.ratio}
+                    type="button"
+                    onClick={() => {
+                      setCqRatio(p.ratio);
+                      onUpdateParentAdmin({ ...parentAdmin, kidCoinRatio: p.ratio });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                      Math.abs(cqRatio - p.ratio) < 0.001
+                        ? 'bg-indigo-600 text-white shadow-xs'
+                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. Bank of Mom & Dad Compound Interest */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <Percent className="w-5 h-5 text-emerald-500" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Bank of Mom & Dad Compound Interest</h3>
+                  <p className="text-[11px] text-slate-500">Chore-Quest monthly compound interest algorithm</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Monthly Yield:</span>
+                <span className="text-sm font-black text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 px-2.5 py-1 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  {cqInterestRate}% per month
+                </span>
+              </div>
+
+              <input
+                type="range"
+                min="1"
+                max="25"
+                step="1"
+                value={cqInterestRate}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  setCqInterestRate(val);
+                  onUpdateParentAdmin({ ...parentAdmin, bankInterestRateMonthlyPercent: val });
+                }}
+                className="w-full accent-emerald-600 cursor-pointer"
+              />
+
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                  Last calculation: <strong>{parentAdmin.lastInterestCalculatedMonth || 'Not run yet'}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const result = applyChoreQuestMonthlyInterest(kids, parentAdmin);
+                    onUpdateKids(result.updatedKids);
+                    onUpdateParentAdmin(result.updatedConfig);
+                    setCqInterestReport(result.message);
+                    if (result.totalInterestPaid > 0) {
+                      playMilestoneFanfare();
+                      sendKidNotification('📈 Monthly Compound Interest Paid!', result.message, 'milestone');
+                    }
+                  }}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  <span>Calculate & Pay Interest Now</span>
+                </button>
+              </div>
+
+              {cqInterestReport && (
+                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs">
+                  {cqInterestReport}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Goal Auto-Deposit Toggle */}
+            <div className="bg-white dark:bg-slate-900 rounded-3xl p-5 border border-slate-200 dark:border-slate-800 shadow-xs space-y-4">
+              <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                <Rocket className="w-5 h-5 text-sky-500" />
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">Chore Auto-Deposit to Goal</h3>
+                  <p className="text-[11px] text-slate-500">Directly funds savings countdown goals</p>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    {cqAutoDeposit ? 'Enabled: Straight to Savings Goal Rocket' : 'Disabled: Deposited to Spending Cash'}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    When kids complete a chore, reward cash fills their active savings target countdown.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !cqAutoDeposit;
+                    setCqAutoDeposit(next);
+                    onUpdateParentAdmin({ ...parentAdmin, autoDepositChoresToGoal: next });
+                  }}
+                  className={`w-12 h-6 rounded-full p-1 transition-colors cursor-pointer ${
+                    cqAutoDeposit ? 'bg-indigo-600' : 'bg-slate-300 dark:bg-slate-700'
+                  }`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white transition-transform ${
+                      cqAutoDeposit ? 'translate-x-6' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Bi-directional Database JSON Export / Import */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 pb-4 border-b border-slate-100 dark:border-slate-800">
+              <div>
+                <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                  <Upload className="w-4 h-4 text-indigo-500" />
+                  <span>Manual Chore-Quest JSON Database Transfer</span>
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Export or import the full <code className="font-mono">FamilyDatabase</code> schema without needing direct network connectivity.
+                </p>
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const exportDb = exportVaultToChoreQuestDatabase(kids, parentAdmin);
+                    navigator.clipboard.writeText(JSON.stringify(exportDb, null, 2));
+                    setCqExportCopied(true);
+                    setTimeout(() => setCqExportCopied(false), 2000);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  {cqExportCopied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                  <span>{cqExportCopied ? 'Copied!' : 'Copy Database'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const exportDb = exportVaultToChoreQuestDatabase(kids, parentAdmin);
+                    const jsonStr = JSON.stringify(exportDb, null, 2);
+                    const blob = new Blob([jsonStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `chorequest_database_${new Date().toISOString().split('T')[0]}.json`;
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download .json</span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
+                Paste Chore-Quest JSON to Merge:
+              </label>
+              <textarea
+                value={cqJsonInput}
+                onChange={(e) => setCqJsonInput(e.target.value)}
+                placeholder={`{\n  "settings": { "kidCoinRatio": 0.10 },\n  "kids": [ ... ],\n  "chores": [ ... ]\n}`}
+                rows={5}
+                className="w-full p-3 text-xs font-mono rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+              />
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!cqJsonInput.trim()) return;
+                    try {
+                      const parsed = JSON.parse(cqJsonInput);
+                      const merged = mergeChoreQuestDatabaseIntoVault(parsed, kids, parentAdmin);
+                      onUpdateKids(merged.updatedKids);
+                      onUpdateParentAdmin(merged.updatedConfig);
+                      setCqJsonInput('');
+                      playMilestoneFanfare();
+                      setCqStatusMsg({
+                        type: 'success',
+                        text: `Database parsed successfully! Updated ${merged.importedKidCount} kids and ${merged.importedChoreCount} chore quests.`,
+                      });
+                    } catch {
+                      setCqStatusMsg({ type: 'error', text: 'Invalid JSON format in pasted content.' });
+                    }
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Merge JSON into KidCoin Vault</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Portainer Docker Compose Reference */}
+          <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3">
+            <h4 className="text-sm font-black text-slate-900 dark:text-white">
+              Raspberry Pi Docker-Compose Reference
+            </h4>
+            <p className="text-xs text-slate-500">
+              Run both Chore-Quest (port 5000) and KidCoin Vault (port 3000) on your home server:
+            </p>
+            <pre className="p-4 rounded-2xl bg-slate-950 text-emerald-400 font-mono text-[11px] overflow-x-auto border border-slate-800 leading-relaxed">
+              {PORTAINER_DOCKER_COMPOSE_SNIPPET}
+            </pre>
+          </div>
+
         </div>
       )}
 

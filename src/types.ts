@@ -6,6 +6,9 @@ export type Category =
   | 'game' 
   | 'snack' 
   | 'toy' 
+  | 'interest'
+  | 'goal_deposit'
+  | 'match'
   | 'other';
 
 export interface Transaction {
@@ -70,18 +73,23 @@ export interface Chore {
   kidId: string;
   title: string;
   rewardAmount: number;
-  category: 'cleaning' | 'pets' | 'school' | 'yard' | 'quest';
+  category: 'cleaning' | 'pets' | 'school' | 'yard' | 'quest' | 'routine' | 'other';
   icon: string;
   completed: boolean;
   isRepeatingWeekly: boolean;
   source?: 'local' | 'chore-quest';
   choreQuestPoints?: number;
+  stars?: number; // Native stars in Chore-Quest
+  isBounty?: boolean;
+  bountyBonusStars?: number;
+  assignedKidIds?: string[];
+  requiresParentVerification?: boolean;
   questId?: string | number;
 }
 
 export interface ChoreQuestConfig {
   endpoint: string; // e.g. http://localhost:5000 or http://raspberrypi.local:5000
-  pointRatio: number; // Dollars per point (e.g. 0.10 = 10 pts per dollar)
+  pointRatio: number; // Dollars per point/star (e.g. 0.10 = 10 stars per dollar)
   apiKey?: string;
   autoSync: boolean;
   lastSyncedAt?: string;
@@ -92,6 +100,8 @@ export interface KidProfile {
   name: string;
   age: number;
   avatarId: string;
+  avatar?: string; // Emoji avatar from Chore-Quest (e.g. 🦁, 🦄, 🚀)
+  color?: string; // Color hex from Chore-Quest (e.g. #f59e0b)
   colorTheme: string; // e.g. emerald, sky, violet, amber
   totalSaved: number;
   availableCash: number;
@@ -112,18 +122,96 @@ export interface KidProfile {
   spendingLimitPerWeek?: number;
   requireParentApproval?: boolean;
   parentNotes?: string;
+  stars?: number; // Current stars from Chore-Quest
+  lifetimeStars?: number;
+  choreQuestKidId?: string; // Original ID in Chore-Quest (e.g. kid-1)
 }
 
 export interface ParentAdminConfig {
   id: string; // 'parent-admin'
   name: string; // 'Parent / Guardian'
-  pin: string; // Master 4-digit PIN (default '9999')
+  pin: string; // Master 4-digit PIN (default '1234')
   recoveryHint?: string;
   familyAllowanceBudget: number;
   interestRateMonthlyPercent: number; // e.g. 5% monthly "Bank of Mom & Dad" interest
   autoApproveChores: boolean;
   requirePinForKidSwitch: boolean;
   lastLoginAt?: string;
+  // Chore-Quest Integrated Settings
+  choreQuestEndpoint?: string;
+  kidCoinRatio?: number; // Conversion: dollars per star earned (default: 0.10)
+  bankInterestRateMonthlyPercent?: number; // Bank of Mom & Dad monthly matching interest (default: 5)
+  autoDepositChoresToGoal?: boolean; // Auto-deposit chore earnings into primary goal rocket (default: true)
+  lastInterestCalculatedMonth?: string; // Last month interest was calculated (YYYY-MM)
+  lastChoreQuestSyncAt?: string;
+}
+
+// ==========================================
+// Chore-Quest Schema Definitions (AstroLee93/Chore-Quest)
+// ==========================================
+
+export interface ChoreQuestAppSettings {
+  parentPin: string;
+  soundEnabled: boolean;
+  streakBonusStars: number;
+  requireParentApprovalForRewards: boolean;
+  kioskTimeout: string;
+  kidCoinEnabled?: boolean;
+  kidCoinRatio?: number; // default: 0.10
+  bankInterestRateMonthlyPercent?: number; // default: 5
+  autoDepositChoresToGoal?: boolean; // default: true
+  lastInterestCalculatedMonth?: string;
+  familyName?: string;
+}
+
+export interface ChoreQuestKidProfile {
+  id: string;
+  name: string;
+  avatar: string;
+  color: string;
+  stars: number;
+  lifetimeStars: number;
+  streakDays: number;
+  lastActiveDate: string;
+  kidCoinBalance?: number;
+  totalSaved?: number;
+  weeklyAllowance?: number;
+  savingsStreakDays?: number;
+  goals?: SavingsGoal[];
+  transactions?: Transaction[];
+}
+
+export interface ChoreQuestChoreItem {
+  id: string;
+  categoryId: string;
+  title: string;
+  description?: string;
+  icon?: string;
+  stars: number;
+  assignedKidIds: string[];
+  frequency?: string;
+  requiresParentVerification?: boolean;
+  isActive?: boolean;
+  order?: number;
+  isBounty?: boolean;
+  bountyBonusStars?: number;
+}
+
+export interface ChoreQuestFamilyDatabase {
+  version?: number;
+  _rev?: number;
+  _updatedAt?: number;
+  settings: ChoreQuestAppSettings;
+  kids: ChoreQuestKidProfile[];
+  categories?: any[];
+  chores: ChoreQuestChoreItem[];
+  logs?: any[];
+  rewards?: any[];
+  redemptions?: any[];
+  weeklyGroceryList?: any;
+  weeklyMenu?: any;
+  events?: any[];
+  familyGoal?: any;
 }
 
 export interface CoachAdvice {

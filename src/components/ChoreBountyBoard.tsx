@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { KidProfile, Chore } from '../types';
+import { KidProfile, Chore, ParentAdminConfig } from '../types';
 import { playCoinSound, playMilestoneFanfare } from '../lib/sound';
 import { sendKidNotification } from '../lib/notifications';
 import { ChoreQuestSyncModal } from './ChoreQuestSyncModal';
@@ -18,17 +18,27 @@ import {
   HeartHandshake, 
   Repeat,
   Check,
-  X
+  X,
+  Flame,
+  Star
 } from 'lucide-react';
 
 interface ChoreBountyBoardProps {
   kid: KidProfile;
   onUpdateKid: (updated: KidProfile) => void;
+  allKids?: KidProfile[];
+  onUpdateKids?: (kids: KidProfile[]) => void;
+  parentAdmin?: ParentAdminConfig;
+  onUpdateParentAdmin?: (config: ParentAdminConfig) => void;
 }
 
 export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
   kid,
   onUpdateKid,
+  allKids = [],
+  onUpdateKids,
+  parentAdmin,
+  onUpdateParentAdmin,
 }) => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showChoreQuestModal, setShowChoreQuestModal] = useState(false);
@@ -37,21 +47,8 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
   const [newCategory, setNewCategory] = useState<'cleaning' | 'pets' | 'school' | 'yard'>('cleaning');
 
   const primaryGoal = kid.goals.find((g) => g.priority === 'primary') || kid.goals[0];
-
-  const getChoreIcon = (icon: string, cat: string) => {
-    switch (icon) {
-      case 'Car':
-        return <Car className="w-4 h-4 text-sky-500" />;
-      case 'Utensils':
-        return <Utensils className="w-4 h-4 text-amber-500" />;
-      case 'Footprints':
-        return <Footprints className="w-4 h-4 text-emerald-500" />;
-      case 'Trash2':
-        return <Trash2 className="w-4 h-4 text-slate-500" />;
-      default:
-        return <Sparkles className="w-4 h-4 text-indigo-500" />;
-    }
-  };
+  const autoDeposit = parentAdmin?.autoDepositChoresToGoal !== false;
+  const pointRatio = parentAdmin?.kidCoinRatio ?? 0.10;
 
   const handleToggleChore = (chore: Chore) => {
     if (chore.completed) {
@@ -63,28 +60,43 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
       return;
     }
 
-    // Complete chore and deposit into savings goal countdown!
     const reward = chore.rewardAmount;
-    const prevSaved = primaryGoal ? primaryGoal.currentSaved : kid.totalSaved;
-    const targetCost = primaryGoal ? primaryGoal.targetCost : 500;
-    const newSaved = prevSaved + reward;
-
-    const prevPercent = (prevSaved / targetCost) * 100;
-    const newPercent = (newSaved / targetCost) * 100;
-
+    let updatedGoals = kid.goals;
+    let updatedCash = kid.availableCash;
+    let updatedTotalSaved = kid.totalSaved;
     let crossedMilestone = false;
-    [25, 50, 75, 100].forEach((m) => {
-      if (prevPercent < m && newPercent >= m) {
+
+    if (autoDeposit && primaryGoal) {
+      // Auto-deposit directly toward countdown goal!
+      const prevSaved = primaryGoal.currentSaved;
+      const targetCost = primaryGoal.targetCost;
+      const spaceInGoal = Math.max(0, targetCost - prevSaved);
+
+      if (reward <= spaceInGoal) {
+        const newSaved = Number((prevSaved + reward).toFixed(2));
+        updatedGoals = kid.goals.map((g) =>
+          g.id === primaryGoal.id ? { ...g, currentSaved: newSaved } : g
+        );
+        updatedTotalSaved = Number((kid.totalSaved + reward).toFixed(2));
+
+        const prevPercent = (prevSaved / targetCost) * 100;
+        const newPercent = (newSaved / targetCost) * 100;
+        [25, 50, 75, 100].forEach((m) => {
+          if (prevPercent < m && newPercent >= m) crossedMilestone = true;
+        });
+      } else {
+        // Goal reached, spillover to available cash
+        updatedGoals = kid.goals.map((g) =>
+          g.id === primaryGoal.id ? { ...g, currentSaved: targetCost } : g
+        );
+        updatedTotalSaved = Number((kid.totalSaved + spaceInGoal).toFixed(2));
+        updatedCash = Number((updatedCash + (reward - spaceInGoal)).toFixed(2));
         crossedMilestone = true;
       }
-    });
-
-    const updatedGoals = kid.goals.map((g) => {
-      if (primaryGoal && g.id === primaryGoal.id) {
-        return { ...g, currentSaved: Number(newSaved.toFixed(2)) };
-      }
-      return g;
-    });
+    } else {
+      // Deposit to discretionary cash balance
+      updatedCash = Number((kid.availableCash + reward).toFixed(2));
+    }
 
     const updatedChores = kid.chores.map((c) =>
       c.id === chore.id ? { ...c, completed: true } : c
@@ -98,16 +110,16 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
       category: 'chore' as const,
       description: `Chore bounty: ${chore.title}`,
       date: new Date().toISOString().split('T')[0],
-      goalContribution: primaryGoal?.id,
+      goalContribution: autoDeposit ? primaryGoal?.id : undefined,
     };
 
-    const newTotalSaved = Number((kid.totalSaved + reward).toFixed(2));
     const newXP = kid.xp + Math.round(reward * 10);
     const newLevel = Math.floor(newXP / 250) + 1;
 
     onUpdateKid({
       ...kid,
-      totalSaved: newTotalSaved,
+      totalSaved: updatedTotalSaved,
+      availableCash: updatedCash,
       xp: newXP,
       level: newLevel,
       goals: updatedGoals,
@@ -127,7 +139,9 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
       playCoinSound();
       sendKidNotification(
         '💵 Chore Bounty Banked!',
-        `Earned +$${reward.toFixed(2)} from "${chore.title}"! Directly added to your goal!`,
+        autoDeposit
+          ? `Earned +$${reward.toFixed(2)} from "${chore.title}"! Auto-deposited into your goal!`
+          : `Earned +$${reward.toFixed(2)} from "${chore.title}"! Added to your available cash!`,
         'chore'
       );
     }
@@ -138,6 +152,8 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
     if (!newTitle.trim()) return;
 
     const reward = parseFloat(newReward) || 5.0;
+    const calculatedStars = Math.round(reward / pointRatio);
+
     const newChore: Chore = {
       id: `chore-${Date.now()}`,
       kidId: kid.id,
@@ -147,6 +163,9 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
       icon: newCategory === 'yard' ? 'Car' : newCategory === 'pets' ? 'Footprints' : 'Sparkles',
       completed: false,
       isRepeatingWeekly: true,
+      stars: calculatedStars,
+      choreQuestPoints: calculatedStars,
+      assignedKidIds: [kid.choreQuestKidId || kid.id],
     };
 
     onUpdateKid({
@@ -163,7 +182,7 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
 
   return (
     <div id="chore-bounty-board" className="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-3 sm:p-4 shadow-xs m-0">
-      <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+      <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-slate-800 flex-wrap gap-2">
         <div>
           <h3 className="font-extrabold text-base text-slate-900 dark:text-white flex items-center gap-2">
             <span>Chore Bounty Board</span>
@@ -172,7 +191,9 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
             </span>
           </h3>
           <p className="text-xs text-slate-600 dark:text-slate-300">
-            Complete tasks to instantly deposit cash toward your countdown
+            {autoDeposit
+              ? 'Complete chores to auto-deposit cash directly into your savings rocket'
+              : 'Complete chores to earn cash into your discretionary wallet'}
           </p>
         </div>
 
@@ -200,73 +221,93 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
 
       {/* Chore List */}
       <div className="mt-4 space-y-2.5">
-        {kid.chores.map((chore) => (
-          <div
-            key={chore.id}
-            onClick={() => handleToggleChore(chore)}
-            className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all cursor-pointer select-none ${
-              chore.completed
-                ? 'bg-slate-50/70 dark:bg-slate-800/30 border-slate-200/60 dark:border-slate-800/60 opacity-70'
-                : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-xs'
-            }`}
-          >
-            <div className="flex items-center gap-3 min-w-0">
-              <button
-                type="button"
-                className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
-                  chore.completed
-                    ? 'bg-emerald-500 text-white'
-                    : 'border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500'
-                }`}
-              >
-                {chore.completed && <Check className="w-4 h-4 stroke-[3]" />}
-              </button>
+        {kid.chores.map((chore) => {
+          const starsDisplay = chore.stars || chore.choreQuestPoints || Math.round(chore.rewardAmount / pointRatio);
 
-              <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
-                <ChoreIcon icon={chore.icon} category={chore.category} className="w-3.5 h-3.5" />
-              </div>
-
-              <div className="min-w-0">
-                <span
-                  className={`text-sm font-bold block truncate ${
+          return (
+            <div
+              key={chore.id}
+              onClick={() => handleToggleChore(chore)}
+              className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 transition-all cursor-pointer select-none ${
+                chore.completed
+                  ? 'bg-slate-50/70 dark:bg-slate-800/30 border-slate-200/60 dark:border-slate-800/60 opacity-70'
+                  : 'bg-white dark:bg-slate-800/60 border-slate-200 dark:border-slate-700/80 hover:border-emerald-300 dark:hover:border-emerald-700 hover:shadow-xs'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <button
+                  type="button"
+                  className={`w-6 h-6 rounded-lg flex items-center justify-center transition-colors shrink-0 ${
                     chore.completed
-                      ? 'line-through text-slate-600 dark:text-slate-300'
-                      : 'text-slate-800 dark:text-slate-100'
+                      ? 'bg-emerald-500 text-white'
+                      : 'border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500'
                   }`}
                 >
-                  {chore.title}
-                </span>
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 flex-wrap">
-                  <span className="capitalize">{chore.category}</span>
-                  {chore.source === 'chore-quest' && (
-                    <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-950 px-1.5 py-0.2 rounded-md flex items-center gap-0.5">
-                      <span>⚔️</span>
-                      <span>{chore.choreQuestPoints || Math.round(chore.rewardAmount * 10)} pts</span>
+                  {chore.completed && <Check className="w-4 h-4 stroke-[3]" />}
+                </button>
+
+                <div className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center shrink-0">
+                  <ChoreIcon icon={chore.icon} category={chore.category} className="w-3.5 h-3.5" />
+                </div>
+
+                <div className="min-w-0">
+                  <span
+                    className={`text-sm font-bold block truncate ${
+                      chore.completed
+                        ? 'line-through text-slate-600 dark:text-slate-300'
+                        : 'text-slate-800 dark:text-slate-100'
+                    }`}
+                  >
+                    {chore.title}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 flex-wrap">
+                    <span className="capitalize">{chore.category}</span>
+                    
+                    {/* Stars badge */}
+                    <span className="text-[10px] font-black text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                      <Star className="w-2.5 h-2.5 fill-amber-500 text-amber-500" />
+                      <span>{starsDisplay} ⭐</span>
                     </span>
-                  )}
-                  {chore.isRepeatingWeekly && (
-                    <>
-                      <span>•</span>
-                      <span className="flex items-center gap-0.5">
-                        <Repeat className="w-2.5 h-2.5" /> Weekly
+
+                    {/* Bounty badge if applicable */}
+                    {chore.isBounty && (
+                      <span className="text-[10px] font-black text-rose-700 dark:text-rose-300 bg-rose-100 dark:bg-rose-950/60 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                        <Flame className="w-2.5 h-2.5 fill-rose-500 text-rose-500" />
+                        <span>Bounty +{chore.bountyBonusStars || 0}★</span>
                       </span>
-                    </>
-                  )}
+                    )}
+
+                    {chore.source === 'chore-quest' && (
+                      <span className="text-[10px] font-black text-indigo-700 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-950 px-1.5 py-0.5 rounded-md flex items-center gap-0.5">
+                        <span>⚔️</span>
+                        <span>Chore-Quest</span>
+                      </span>
+                    )}
+
+                    {chore.isRepeatingWeekly && (
+                      <>
+                        <span>•</span>
+                        <span className="flex items-center gap-0.5">
+                          <Repeat className="w-2.5 h-2.5" /> Weekly
+                        </span>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="shrink-0 flex items-center gap-2">
-              <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${
-                chore.completed
-                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
-                  : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-              }`}>
-                +${chore.rewardAmount.toFixed(2)}
-              </span>
+              <div className="shrink-0 flex items-center gap-2">
+                <span className={`text-sm font-black px-2.5 py-1 rounded-xl ${
+                  chore.completed
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300'
+                    : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                }`}>
+                  +${chore.rewardAmount.toFixed(2)}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Add Chore Modal */}
@@ -279,73 +320,71 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
               </h3>
               <button
                 onClick={() => setShowAddModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+                className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 transition-colors"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            <form onSubmit={handleAddChore} className="mt-4 space-y-4">
+            <form onSubmit={handleAddChore} className="space-y-4 mt-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                  Chore Description
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Chore Task Name
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="e.g. Rake autumn leaves in backyard"
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g. Wash and vacuum car wheels"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
-                    Reward Cash ($)
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Cash Bounty ($)
                   </label>
-                  <input
-                    type="number"
-                    step="0.50"
-                    min="0.50"
-                    required
-                    value={newReward}
-                    onChange={(e) => setNewReward(e.target.value)}
-                    className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white font-bold focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
-                  />
+                  <div className="relative">
+                    <span className="absolute left-3 top-2.5 text-slate-600 dark:text-slate-400 font-bold">$</span>
+                    <input
+                      type="number"
+                      step="0.50"
+                      min="0.50"
+                      value={newReward}
+                      onChange={(e) => setNewReward(e.target.value)}
+                      className="w-full pl-7 pr-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm font-bold focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                  <span className="text-[10px] text-slate-600 dark:text-slate-300 mt-1 block">
+                    ≈ {Math.round((parseFloat(newReward) || 0) / pointRatio)} stars in Chore-Quest
+                  </span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 uppercase mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Category
                   </label>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value as any)}
-                    className="w-full px-3.5 py-2 text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   >
                     <option value="cleaning">Cleaning</option>
+                    <option value="yard">Yard / Outdoor</option>
                     <option value="pets">Pet Care</option>
-                    <option value="yard">Yard / Outside</option>
-                    <option value="school">Homework / School</option>
+                    <option value="school">School / Study</option>
                   </select>
                 </div>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setShowAddModal(false)}
-                  className="px-4 py-2 text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
+              <div className="pt-2">
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md transition-all"
                 >
-                  Create Bounty
+                  Add Chore to Bounty Board
                 </button>
               </div>
             </form>
@@ -353,12 +392,16 @@ export const ChoreBountyBoard: React.FC<ChoreBountyBoardProps> = ({
         </div>
       )}
 
-      {/* Chore-Quest Portainer Pi Integration Modal */}
+      {/* Chore-Quest Synchronization Modal */}
       <ChoreQuestSyncModal
         isOpen={showChoreQuestModal}
         onClose={() => setShowChoreQuestModal(false)}
         kid={kid}
         onUpdateKid={onUpdateKid}
+        allKids={allKids}
+        onUpdateKids={onUpdateKids}
+        parentAdmin={parentAdmin}
+        onUpdateParentAdmin={onUpdateParentAdmin}
       />
     </div>
   );

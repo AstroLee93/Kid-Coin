@@ -119,6 +119,131 @@ app.get("/api/health", (req, res) => {
     engine: "KidCoin Vault v2.1",
     encryption: "AES-256-GCM / SQLCipher 4.5.6 compatibility layer",
     deploymentTarget: "Raspberry Pi (Docker + Portainer)",
+    choreQuestIntegration: "AstroLee93/Chore-Quest (KidCoin Vault Protocol v1)",
+  });
+});
+
+// Chore-Quest Proxy Endpoint to avoid browser CORS issues on local network/containers
+app.post("/api/chorequest/sync", async (req, res) => {
+  try {
+    const { endpoint = "http://localhost:5000", action = "pull", database } = req.body;
+    const cleanEndpoint = String(endpoint).replace(/\/+$/, "");
+
+    if (action === "push") {
+      if (!database) {
+        return res.status(400).json({ success: false, message: "Missing database payload to push." });
+      }
+      const response = await fetch(`${cleanEndpoint}/api/database`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ database, senderId: "kidcoin-vault" }),
+      });
+      if (!response.ok) {
+        return res.status(response.status).json({
+          success: false,
+          message: `Chore-Quest returned HTTP ${response.status}`,
+        });
+      }
+      return res.json({ success: true, message: "Database pushed to Chore-Quest successfully." });
+    }
+
+    // Default: Pull database from Chore-Quest
+    const candidateUrls = [
+      `${cleanEndpoint}/api/database`,
+      `${cleanEndpoint}/api/chores`,
+      `${cleanEndpoint}/chores`,
+    ];
+
+    let lastError = "";
+    for (const url of candidateUrls) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000);
+        const resp = await fetch(url, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+
+        if (resp.ok) {
+          const data = await resp.json();
+          return res.json({ success: true, database: data, sourceUrl: url });
+        }
+      } catch (err: any) {
+        lastError = err.message || String(err);
+      }
+    }
+
+    return res.status(502).json({
+      success: false,
+      message: `Failed to contact Chore-Quest at ${endpoint} (${lastError}). Ensure container is running.`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error during Chore-Quest sync",
+    });
+  }
+});
+
+// Chore-Quest Sample Database Endpoint
+app.get("/api/chorequest/sample-db", (req, res) => {
+  res.json({
+    version: 1,
+    settings: {
+      parentPin: "1234",
+      soundEnabled: true,
+      streakBonusStars: 5,
+      requireParentApprovalForRewards: false,
+      kioskTimeout: "5m",
+      kidCoinEnabled: true,
+      kidCoinRatio: 0.10,
+      bankInterestRateMonthlyPercent: 5,
+      autoDepositChoresToGoal: true,
+      familyName: "Quest Family",
+    },
+    kids: [
+      {
+        id: "kid-1",
+        name: "Leo",
+        avatar: "🦁",
+        color: "#f59e0b",
+        stars: 45,
+        lifetimeStars: 180,
+        streakDays: 4,
+        kidCoinBalance: 12.50,
+        totalSaved: 245.00,
+        weeklyAllowance: 12.00,
+        savingsStreakDays: 14,
+      },
+      {
+        id: "kid-2",
+        name: "Maya",
+        avatar: "🦄",
+        color: "#ec4899",
+        stars: 62,
+        lifetimeStars: 220,
+        streakDays: 6,
+        kidCoinBalance: 18.00,
+        totalSaved: 95.00,
+        weeklyAllowance: 8.00,
+        savingsStreakDays: 9,
+      },
+      {
+        id: "kid-3",
+        name: "Sam",
+        avatar: "🚀",
+        color: "#3b82f6",
+        stars: 28,
+        lifetimeStars: 95,
+        streakDays: 2,
+        kidCoinBalance: 8.00,
+        totalSaved: 47.50,
+        weeklyAllowance: 4.00,
+        savingsStreakDays: 2,
+      },
+    ],
   });
 });
 

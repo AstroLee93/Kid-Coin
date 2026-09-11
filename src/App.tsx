@@ -335,6 +335,10 @@ export default function App() {
                     <ChoreBountyBoard
                       kid={activeKid}
                       onUpdateKid={handleUpdateActiveKid}
+                      allKids={kids}
+                      onUpdateKids={handleUpdateKids}
+                      parentAdmin={parentAdmin}
+                      onUpdateParentAdmin={handleUpdateParentAdmin}
                     />
                   </div>
 

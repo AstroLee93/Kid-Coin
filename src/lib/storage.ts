@@ -329,6 +329,10 @@ export const DEFAULT_PARENT_ADMIN: ParentAdminConfig = {
   autoApproveChores: false,
   requirePinForKidSwitch: false,
   lastLoginAt: new Date().toISOString(),
+  choreQuestEndpoint: 'http://localhost:5000',
+  kidCoinRatio: 0.10,
+  bankInterestRateMonthlyPercent: 5.0,
+  autoDepositChoresToGoal: true,
 };
 
 const PARENT_ADMIN_KEY = 'kidcoin_vault_parent_admin_v1';
