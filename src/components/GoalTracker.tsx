@@ -20,7 +20,9 @@ import {
   Flame,
   ArrowRight,
   TrendingUp,
-  Target
+  Target,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 
 interface GoalTrackerProps {
@@ -28,6 +30,7 @@ interface GoalTrackerProps {
   themeConfig?: ThemeOption;
   onUpdateKid: (updated: KidProfile) => void;
   onOpenNewGoalModal: () => void;
+  onDeleteGoal?: (goalId: string) => void;
 }
 
 export const GoalTracker: React.FC<GoalTrackerProps> = ({
@@ -35,28 +38,46 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
   themeConfig,
   onUpdateKid,
   onOpenNewGoalModal,
+  onDeleteGoal,
 }) => {
   const [quickDepositAmount, setQuickDepositAmount] = useState<string>('');
   const [showQuickDeposit, setShowQuickDeposit] = useState(false);
   const [showRocketLaunchModal, setShowRocketLaunchModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Primary goal or fallback to first goal
   const primaryGoal = kid.goals.find((g) => g.priority === 'primary') || kid.goals[0];
 
   if (!primaryGoal) {
     return (
-      <div className="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-center shadow-xs p-4">
-        <Target className="w-10 h-10 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-        <h3 className="text-base font-bold text-slate-800 dark:text-slate-200">No Active Savings Goal Yet</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
-          Pick a dream goal like a PlayStation 5, Nintendo Switch, or LEGO set to start your countdown!
-        </p>
-        <button
-          onClick={onOpenNewGoalModal}
-          className="mt-3 px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 text-white text-xs font-bold rounded-xl shadow-xs cursor-pointer min-h-[44px] flex items-center justify-center mx-auto"
-        >
-          + Set Your Dream Goal
-        </button>
+      <div className="w-full bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-center shadow-xs p-6">
+        <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 flex items-center justify-center mx-auto mb-3 text-2xl">
+          🚀
+        </div>
+        <h3 className="text-lg font-black text-slate-900 dark:text-white">No Active Savings Goal</h3>
+        {kid.totalSaved > 0 ? (
+          <div className="my-3 inline-flex flex-col items-center p-3 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/70 max-w-md mx-auto text-center">
+            <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+              💰 Safe in Vault: <strong className="text-sm sm:text-base">${kid.totalSaved.toFixed(2)}</strong> accumulated savings
+            </span>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+              Pick a new goal now! All ${kid.totalSaved.toFixed(2)} will be automatically reallocated to launch your rocket countdown.
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+            Pick a dream goal like a PlayStation 5, Nintendo Switch, or LEGO set to start your countdown!
+          </p>
+        )}
+        <div className="mt-2">
+          <button
+            onClick={onOpenNewGoalModal}
+            className="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white text-xs font-bold rounded-xl shadow-md cursor-pointer min-h-[44px] inline-flex items-center justify-center gap-2"
+          >
+            <Target className="w-4 h-4" />
+            <span>+ Set Dream Goal {kid.totalSaved > 0 ? `(Reallocate $${kid.totalSaved.toFixed(2)})` : ''}</span>
+          </button>
+        </div>
       </div>
     );
   }
@@ -208,15 +229,36 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
                     Verified MSRP
                   </span>
                 )}
+                {primaryGoal.retailer && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                    🏪 {primaryGoal.retailer}
+                  </span>
+                )}
+                {primaryGoal.sku && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                    SKU: {primaryGoal.sku}
+                  </span>
+                )}
+                {primaryGoal.barcode && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hidden sm:inline-flex">
+                    UPC: {primaryGoal.barcode}
+                  </span>
+                )}
               </div>
               <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5 flex flex-wrap items-center gap-1.5">
                 <span>{primaryGoal.category}</span>
                 <span>•</span>
                 <span>Target Cost: <strong className="text-slate-800 dark:text-slate-200">${primaryGoal.targetCost.toFixed(2)}</strong></span>
-                {primaryGoal.verifiedSource && (
+                {primaryGoal.verifiedSource && !primaryGoal.retailer && (
                   <>
                     <span>•</span>
                     <span className="hidden sm:inline">{primaryGoal.verifiedSource}</span>
+                  </>
+                )}
+                {primaryGoal.itemNumber && (
+                  <>
+                    <span>•</span>
+                    <span className="font-mono text-[10px]">{primaryGoal.itemNumber}</span>
                   </>
                 )}
               </p>
@@ -232,6 +274,15 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
               <span>Change Goal</span>
             </button>
             <button
+              id="delete-goal-btn"
+              onClick={() => setShowDeleteModal(true)}
+              className="flex-none flex items-center justify-center gap-1 px-2.5 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 dark:hover:bg-rose-900/60 text-rose-600 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 rounded-xl text-xs font-bold transition-colors min-h-[44px] cursor-pointer"
+              title="Remove or delete this goal"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Remove</span>
+            </button>
+            <button
               id="open-deposit-form-btn"
               onClick={() => setShowQuickDeposit(!showQuickDeposit)}
               className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-xs font-bold shadow-xs transition-all min-h-[44px] cursor-pointer"
@@ -241,6 +292,36 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
             </button>
           </div>
         </div>
+
+        {/* Goal Switcher Strip (if multiple goals exist) */}
+        {kid.goals.length > 1 && (
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-slate-100 dark:border-slate-800 mb-3 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <span className="text-[11px] font-bold text-slate-400 uppercase shrink-0">Switch Goal:</span>
+            {kid.goals.map((g) => (
+              <button
+                key={g.id}
+                onClick={() => {
+                  if (g.id !== primaryGoal.id) {
+                    const updated = kid.goals.map((item) => ({
+                      ...item,
+                      priority: item.id === g.id ? ('primary' as const) : ('secondary' as const),
+                    }));
+                    onUpdateKid({ ...kid, goals: updated });
+                  }
+                }}
+                className={`text-xs px-2.5 py-1 rounded-xl font-bold transition-all cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 border ${
+                  g.id === primaryGoal.id
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-xs'
+                    : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <GoalIcon icon={g.icon} className="w-3.5 h-3.5 shrink-0" />
+                <span>{g.title}</span>
+                <span className="text-[10px] opacity-80">(${g.currentSaved.toFixed(0)}/${g.targetCost.toFixed(0)})</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Quick Deposit Form Drawer */}
         {showQuickDeposit && (
@@ -411,6 +492,55 @@ export const GoalTracker: React.FC<GoalTrackerProps> = ({
         </div>
 
       </div>
+
+      {/* Delete Goal Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-5 sm:p-6 border border-slate-200 dark:border-slate-800 shadow-2xl animate-in zoom-in-95">
+            <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-6 h-6" />
+            </div>
+
+            <h3 className="text-center font-black text-lg text-slate-900 dark:text-white">
+              Remove Savings Goal?
+            </h3>
+            
+            <p className="text-center text-xs text-slate-600 dark:text-slate-300 mt-1">
+              Are you sure you want to remove <strong className="text-slate-900 dark:text-white">"{primaryGoal.title}"</strong>?
+            </p>
+
+            {/* Fund Protection Notice */}
+            <div className="my-4 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-black text-emerald-800 dark:text-emerald-300">
+                <span>🛡️ Banked Funds Protected</span>
+              </div>
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                Your accumulated savings of <strong className="font-black text-emerald-900 dark:text-emerald-200">${primaryGoal.currentSaved.toFixed(2)}</strong> will <strong>NOT</strong> be lost. It stays safe in {kid.name}'s vault balance and will be automatically reallocated when you pick or create a new goal!
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                className="flex-1 py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer min-h-[44px]"
+              >
+                Keep Goal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  onDeleteGoal?.(primaryGoal.id);
+                }}
+                className="flex-1 py-2.5 px-4 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer min-h-[44px]"
+              >
+                Yes, Remove Goal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 };

@@ -43,6 +43,16 @@ export interface SavingsGoal {
   createdAt: string;
   deadline?: string;
   milestones: SavingsMilestone[];
+  // Retail and AI database metadata
+  retailer?: string;
+  sku?: string;
+  barcode?: string;
+  itemNumber?: string;
+  modelNumber?: string;
+  specs?: string[];
+  productUrl?: string;
+  description?: string;
+  whyKidsLoveIt?: string;
 }
 
 export interface Badge {

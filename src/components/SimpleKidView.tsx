@@ -22,7 +22,8 @@ import {
   SlidersHorizontal,
   PartyPopper,
   Calendar,
-  Gift
+  Gift,
+  Trash2
 } from 'lucide-react';
 
 interface SimpleKidViewProps {
@@ -31,6 +32,7 @@ interface SimpleKidViewProps {
   onUpdateKid: (updated: KidProfile) => void;
   onSwitchToAdvanced: () => void;
   onOpenNewGoalModal: () => void;
+  onDeleteGoal?: (goalId: string) => void;
 }
 
 export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
@@ -39,6 +41,7 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
   onUpdateKid,
   onSwitchToAdvanced,
   onOpenNewGoalModal,
+  onDeleteGoal,
 }) => {
   const [selectedGoalId, setSelectedGoalId] = useState<string>(
     kid.goals[0]?.id || ''
@@ -48,6 +51,7 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
   const [customDepositReason, setCustomDepositReason] = useState('Piggy Bank Deposit');
 
   const [spendModalOpen, setSpendModalOpen] = useState(false);
+  const [showDeleteGoalModal, setShowDeleteGoalModal] = useState(false);
   const [spendAmount, setSpendAmount] = useState('');
   const [spendReason, setSpendReason] = useState('');
 
@@ -497,38 +501,63 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
               </button>
             </div>
 
-            {/* Quick Spend / Take Out Button */}
-            <div className="mt-4 flex items-center justify-between pt-4 border-t border-slate-100 dark:border-slate-800">
+            {/* Quick Spend / Take Out Button & Goal Actions */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-slate-100 dark:border-slate-800">
               <button
                 onClick={() => setSpendModalOpen(true)}
-                className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer"
+                className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer min-h-[44px]"
               >
                 <ShoppingBag className="w-3.5 h-3.5" />
                 <span>Spend some money (Bought snack/toy)</span>
               </button>
 
-              <button
-                onClick={onOpenNewGoalModal}
-                className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center gap-1.5 px-3 py-1.5 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer"
-              >
-                <Target className="w-3.5 h-3.5" />
-                <span>+ Create New Goal</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowDeleteGoalModal(true)}
+                  className="text-xs font-bold text-rose-600 dark:text-rose-400 hover:text-rose-700 flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors cursor-pointer min-h-[44px]"
+                  title="Remove this goal"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Remove Goal</span>
+                </button>
+
+                <button
+                  onClick={onOpenNewGoalModal}
+                  className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:text-amber-700 flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-amber-50 dark:hover:bg-amber-950/40 transition-colors cursor-pointer min-h-[44px]"
+                >
+                  <Target className="w-3.5 h-3.5" />
+                  <span>+ Set New Goal</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200 dark:border-slate-800">
-          <Target className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+        <div className="bg-white dark:bg-slate-900 rounded-3xl p-8 text-center border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="w-16 h-16 rounded-3xl bg-amber-100 dark:bg-amber-950/60 border border-amber-200 dark:border-amber-800 text-3xl flex items-center justify-center mx-auto mb-3">
+            🚀
+          </div>
           <h3 className="text-xl font-black text-slate-900 dark:text-white">No Savings Goal Yet!</h3>
-          <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1 mb-4">
-            Pick something fun you want to save for, like a game, bicycle, or LEGO set!
-          </p>
+          {kid.totalSaved > 0 ? (
+            <div className="my-3 p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 max-w-sm mx-auto">
+              <div className="text-xs font-bold text-emerald-800 dark:text-emerald-300">
+                💰 You have <strong>${kid.totalSaved.toFixed(2)}</strong> saved in your vault!
+              </div>
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 mt-1">
+                Pick a new goal now and your ${kid.totalSaved.toFixed(2)} will immediately transfer over to fuel your rocket!
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-slate-500 max-w-sm mx-auto mt-1 mb-4">
+              Pick something fun you want to save for, like a game, bicycle, or LEGO set!
+            </p>
+          )}
           <button
             onClick={onOpenNewGoalModal}
-            className="px-6 py-3 rounded-2xl bg-amber-500 text-white font-black text-sm shadow-md hover:bg-amber-600 cursor-pointer"
+            className="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-black text-sm shadow-md cursor-pointer inline-flex items-center gap-2 min-h-[44px]"
           >
-            + Set Your First Goal
+            <Target className="w-4 h-4" />
+            <span>+ Set Your Goal {kid.totalSaved > 0 ? `(Reallocate $${kid.totalSaved.toFixed(2)})` : ''}</span>
           </button>
         </div>
       )}
@@ -983,6 +1012,55 @@ export const SimpleKidView: React.FC<SimpleKidViewProps> = ({
         kid={kid}
         onUpdateKid={onUpdateKid}
       />
+
+      {/* Delete Goal Confirmation Modal for Kid View */}
+      {showDeleteGoalModal && activeGoal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 shadow-2xl animate-in zoom-in-95 text-center">
+            <div className="w-14 h-14 rounded-2xl bg-rose-100 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 flex items-center justify-center mx-auto mb-3">
+              <Trash2 className="w-7 h-7" />
+            </div>
+
+            <h3 className="font-black text-xl text-slate-900 dark:text-white">
+              Remove "{activeGoal.title}"?
+            </h3>
+            
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-2">
+              Do you want to take this goal off your savings board?
+            </p>
+
+            {/* Money Safety Guarantee */}
+            <div className="my-4 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-left">
+              <div className="text-xs font-black text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5 mb-1">
+                <span>🛡️ Don't Worry! Your Money Is Safe!</span>
+              </div>
+              <p className="text-xs text-emerald-700 dark:text-emerald-400 leading-relaxed">
+                Your <strong className="font-black text-emerald-900 dark:text-emerald-200">${activeGoal.currentSaved.toFixed(2)}</strong> in savings will NOT be lost! It stays safely banked in your vault, and will be automatically reallocated when you choose your next goal!
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowDeleteGoalModal(false)}
+                className="flex-1 py-3 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold rounded-xl transition-colors cursor-pointer min-h-[44px]"
+              >
+                Keep Goal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDeleteGoalModal(false);
+                  onDeleteGoal?.(activeGoal.id);
+                }}
+                className="flex-1 py-3 px-4 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md transition-colors cursor-pointer min-h-[44px]"
+              >
+                Yes, Remove Goal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -1,6 +1,6 @@
 import { playMilestoneFanfare, playCoinSound } from './sound';
 
-export type NotificationType = 'milestone' | 'badge' | 'avatar' | 'allowance' | 'chore' | 'security';
+export type NotificationType = 'milestone' | 'badge' | 'avatar' | 'allowance' | 'chore' | 'security' | 'general';
 
 export interface ToastNotification {
   id: string;

@@ -27,6 +27,7 @@ import { SimpleKidView } from './components/SimpleKidView';
 import { ParentAdminPortal } from './components/ParentAdminPortal';
 import { ParentPinAuthModal } from './components/ParentPinAuthModal';
 import { AdminExitVisualAid } from './components/AdminExitVisualAid';
+import { sendKidNotification } from './lib/notifications';
 import { ShieldCheck, HardDrive, Cpu, Lock } from 'lucide-react';
 
 export default function App() {
@@ -200,11 +201,118 @@ export default function App() {
   };
 
   const handleSelectNewGoal = (newGoal: SavingsGoal) => {
-    const updatedGoals = [newGoal, ...activeKid.goals.filter((g) => g.id !== newGoal.id)];
+    // Determine accumulated funds available for reallocation:
+    // If activeKid has totalSaved > 0, or if existing primary goal had currentSaved > 0
+    const existingPrimary = activeKid.goals.find((g) => g.priority === 'primary') || activeKid.goals[0];
+    const accumulated = activeKid.totalSaved > 0 
+      ? activeKid.totalSaved 
+      : (existingPrimary?.currentSaved || 0);
+
+    // Amount to reallocate to this new goal (capped by target cost)
+    const reallocatedAmount = Math.min(newGoal.targetCost, Math.max(newGoal.currentSaved || 0, accumulated));
+    const percent = newGoal.targetCost > 0 ? (reallocatedAmount / newGoal.targetCost) * 100 : 0;
+    
+    // Automatically recalculate milestone statuses based on reallocated funds
+    const updatedMilestones = (newGoal.milestones || []).map((m) => ({
+      ...m,
+      reached: percent >= m.percent,
+      reachedAt: percent >= m.percent ? (m.reachedAt || new Date().toISOString().split('T')[0]) : undefined,
+    }));
+
+    const goalWithFunds: SavingsGoal = {
+      ...newGoal,
+      currentSaved: reallocatedAmount,
+      priority: 'primary',
+      milestones: updatedMilestones,
+    };
+
+    // If there were other goals, demote them to secondary so the new goal is primary
+    const remainingGoals = activeKid.goals
+      .filter((g) => g.id !== newGoal.id)
+      .map((g) => ({ ...g, priority: 'secondary' as const }));
+
+    const updatedGoals = [goalWithFunds, ...remainingGoals];
+    const updatedTotalSaved = Math.max(activeKid.totalSaved, reallocatedAmount);
+
+    const newTx = reallocatedAmount > 0 ? {
+      id: `tx-realloc-${Date.now()}`,
+      kidId: activeKid.id,
+      type: 'deposit' as const,
+      amount: reallocatedAmount,
+      category: 'savings' as const,
+      description: `Reallocated accumulated funds to ${newGoal.title}`,
+      date: new Date().toISOString().split('T')[0],
+      goalContribution: goalWithFunds.id,
+    } : undefined;
+
     handleUpdateActiveKid({
       ...activeKid,
+      totalSaved: updatedTotalSaved,
+      goals: updatedGoals,
+      transactions: newTx ? [newTx, ...activeKid.transactions] : activeKid.transactions,
+    });
+
+    if (reallocatedAmount > 0) {
+      sendKidNotification(
+        '💰 Funds Reallocated to Goal!',
+        `Transferred $${reallocatedAmount.toFixed(2)} in accumulated savings directly to ${newGoal.title}! Countdown rocket is fueled to ${percent.toFixed(0)}%.`,
+        'milestone'
+      );
+    }
+  };
+
+  const handleDeleteGoal = (goalId: string) => {
+    const goalToRemove = activeKid.goals.find((g) => g.id === goalId);
+    if (!goalToRemove) return;
+
+    const remainingGoals = activeKid.goals.filter((g) => g.id !== goalId);
+    const accumulated = activeKid.totalSaved > 0 ? activeKid.totalSaved : (goalToRemove.currentSaved || 0);
+
+    let updatedGoals = remainingGoals;
+
+    if (remainingGoals.length > 0) {
+      // Reallocate funds to the next primary goal
+      const nextPrimary = remainingGoals[0];
+      const reallocatedAmount = Math.min(nextPrimary.targetCost, accumulated);
+      const percent = nextPrimary.targetCost > 0 ? (reallocatedAmount / nextPrimary.targetCost) * 100 : 0;
+      const updatedMilestones = (nextPrimary.milestones || []).map((m) => ({
+        ...m,
+        reached: percent >= m.percent,
+        reachedAt: percent >= m.percent ? (m.reachedAt || new Date().toISOString().split('T')[0]) : undefined,
+      }));
+
+      updatedGoals = remainingGoals.map((g, idx) => {
+        if (idx === 0) {
+          return {
+            ...g,
+            priority: 'primary' as const,
+            currentSaved: reallocatedAmount,
+            milestones: updatedMilestones,
+          };
+        }
+        return {
+          ...g,
+          priority: 'secondary' as const,
+        };
+      });
+    }
+
+    // Keep totalSaved intact! The kid still has this money banked in their vault
+    const preservedTotalSaved = Math.max(activeKid.totalSaved, accumulated);
+
+    handleUpdateActiveKid({
+      ...activeKid,
+      totalSaved: preservedTotalSaved,
       goals: updatedGoals,
     });
+
+    sendKidNotification(
+      '🗑️ Goal Removed',
+      remainingGoals.length > 0
+        ? `Removed "${goalToRemove.title}". Your $${preservedTotalSaved.toFixed(2)} in savings was transferred to "${remainingGoals[0].title}"!`
+        : `Removed "${goalToRemove.title}". Your $${preservedTotalSaved.toFixed(2)} in savings remains safely banked in your vault and will transfer to your next goal!`,
+      'general'
+    );
   };
 
   const handleImportKids = (importedKids: KidProfile[]) => {
@@ -311,6 +419,7 @@ export default function App() {
                 onUpdateKid={handleUpdateActiveKid}
                 onSwitchToAdvanced={() => handleViewModeChange('advanced')}
                 onOpenNewGoalModal={() => setIsNewGoalOpen(true)}
+                onDeleteGoal={handleDeleteGoal}
               />
             ) : (
               /* Advanced View (Graphs, Detailed Multi-Column Ledger, Portainer & Technical Analytics) */
@@ -321,6 +430,7 @@ export default function App() {
                   themeConfig={themeConfig}
                   onUpdateKid={handleUpdateActiveKid}
                   onOpenNewGoalModal={() => setIsNewGoalOpen(true)}
+                  onDeleteGoal={handleDeleteGoal}
                 />
 
                 {/* 2-Column Responsive Operational Grid (Zero padding, flush borders) */}
@@ -405,6 +515,8 @@ export default function App() {
         isOpen={isNewGoalOpen}
         onClose={() => setIsNewGoalOpen(false)}
         onSelectGoal={handleSelectNewGoal}
+        kid={activeKid}
+        onDeleteGoal={handleDeleteGoal}
       />
 
       <PiDeploymentModal

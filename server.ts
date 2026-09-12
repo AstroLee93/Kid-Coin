@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI } from "@google/genai";
+import { lookupRetailProductLocal, POPULAR_RETAIL_DATABASE } from "./src/lib/retailCatalog";
 
 dotenv.config();
 
@@ -253,6 +254,123 @@ app.get("/api/verified-items", (req, res) => {
     items: VERIFIED_ITEMS,
     updatedAt: new Date().toISOString(),
   });
+});
+
+// 2b. Retail Database Samples for popular stores (Amazon, Best Buy, Target, Walmart, Micro Center)
+app.get("/api/retail-samples", (req, res) => {
+  res.json({
+    success: true,
+    stores: ["Amazon", "Best Buy", "Target", "Walmart", "Micro Center", "Apple", "LEGO"],
+    samples: POPULAR_RETAIL_DATABASE,
+  });
+});
+
+// 2c. AI Retail Database & Barcode/SKU/Item# Lookup Endpoint
+app.post("/api/retail-lookup", async (req, res) => {
+  try {
+    const { query = "", retailer = "all", codeType = "auto" } = req.body;
+    const cleanQuery = String(query).trim();
+
+    if (!cleanQuery) {
+      return res.status(400).json({ success: false, message: "Query is required." });
+    }
+
+    // First check local verified database for instant exact matches
+    const localMatch = lookupRetailProductLocal(cleanQuery, retailer);
+
+    // Call Gemini AI model to identify product and retail database records
+    const ai = getAI();
+    if (ai) {
+      try {
+        const prompt = `You are a precision retail product identification expert and AI product database engine.
+Look up this product identifier from popular retailers (including Amazon, Best Buy, Target, Walmart, Micro Center, Apple, LEGO, GameStop):
+
+Query/Code: "${cleanQuery}"
+Specific Retailer Filter: "${retailer && retailer !== 'all' ? retailer : 'Any / Auto-detect'}"
+Code Type Hint: "${codeType || 'auto (could be SKU, Barcode/UPC, Item#, ASIN, DPCI, or Model#)'}"
+
+Instructions:
+1. Identify the exact real-world commercial product that corresponds to this SKU, barcode/UPC, Item#, or query.
+   - Amazon format: ASIN (e.g. B0CL5KNB9M or B07NDXZV2B), Model #, or 12-digit UPC
+   - Best Buy format: 7-digit SKU (e.g. 6522854, 6470924), Model #, or UPC
+   - Target format: 9-digit DPCI (e.g. 207-00-0199 or 057-00-0089) or TCIN or UPC
+   - Walmart format: 8-9 digit Item ID (e.g. 345678912, 554321908) or UPC
+   - Micro Center format: 6-digit SKU (e.g. 654321, 589214, 621980) or Mfr Part #
+2. Determine which major retailer it belongs to (e.g., Best Buy, Target, Amazon, Walmart, Micro Center, Apple, LEGO).
+3. Determine accurate MSRP / current retail selling price in USD.
+4. Return a JSON object with:
+   - "title": string (official clean product name)
+   - "targetCost": number (e.g. 499.99)
+   - "retailer": string (e.g. "Best Buy", "Target", "Amazon", "Walmart", "Micro Center", "Apple", "LEGO")
+   - "category": string (one of "Gaming", "Electronics", "Toys & LEGO", "Tech & PC", "Audio", "Sports & Outdoors", "Fashion & Clothes")
+   - "sku": string (the SKU or DPCI for that retailer)
+   - "barcode": string (12-digit UPC or 13-digit EAN barcode)
+   - "itemNumber": string (store item #, ASIN, or DPCI)
+   - "modelNumber": string (manufacturer model number)
+   - "icon": string (one of "Gamepad2", "Tv", "Boxes", "Headphones", "Bike", "Tablet", "Coins", "Laptop", "Sparkles")
+   - "description": string (concise 1-2 sentence kid-friendly description)
+   - "specs": array of 3 concise strings highlighting key features
+   - "whyKidsLoveIt": string (fun sentence explaining why kids want to save for it)
+   - "confidence": "verified" | "high" | "estimated"
+
+Return STRICTLY JSON.`;
+
+        const response = await ai.models.generateContent({
+          model: "gemini-3.8-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            temperature: 0.2, // Low temperature for factual precision
+          },
+        });
+
+        const text = response.text?.trim();
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+            if (parsed.title && parsed.targetCost) {
+              const cost = typeof parsed.targetCost === "number" ? parsed.targetCost : parseFloat(parsed.targetCost);
+              return res.json({
+                success: true,
+                source: "gemini-ai",
+                product: {
+                  ...parsed,
+                  targetCost: Number(cost.toFixed(2)),
+                  id: `goal-ai-${Date.now()}`,
+                },
+              });
+            }
+          } catch {
+            // fallback to local database below
+          }
+        }
+      } catch (aiErr: any) {
+        console.warn("Gemini retail lookup error, falling back to local database:", aiErr?.message || aiErr);
+      }
+    }
+
+    // If local match found, return it
+    if (localMatch) {
+      return res.json({
+        success: true,
+        source: "local-database",
+        product: {
+          ...localMatch,
+          confidence: "verified",
+        },
+      });
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: `Could not identify product for "${cleanQuery}". Try entering a known SKU (e.g. Best Buy 6522854, Target 207-00-0199), barcode (e.g. 711719570530), or use one of the quick test buttons!`,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to lookup retail product",
+    });
+  }
 });
 
 // 3. Personalized financial tips and milestone coaching via Gemini
